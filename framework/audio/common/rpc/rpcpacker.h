@@ -58,6 +58,8 @@ template<typename T>
 void unpack_custom(muse::msgpack::UnPacker& p, muse::audio::AutomatableValue<T>& value);
 void pack_custom(muse::msgpack::Packer& p, const muse::audio::ControlParams& value);
 void unpack_custom(muse::msgpack::UnPacker& p, muse::audio::ControlParams& value);
+void pack_custom(muse::msgpack::Packer& p, const muse::audio::SoundTrackData& value);
+void unpack_custom(muse::msgpack::UnPacker& p, muse::audio::SoundTrackData& value);
 void pack_custom(muse::msgpack::Packer& p, const muse::audio::TrackParams& value);
 void unpack_custom(muse::msgpack::UnPacker& p, muse::audio::TrackParams& value);
 
@@ -274,14 +276,24 @@ inline void unpack_custom(muse::msgpack::UnPacker& p, muse::audio::ControlParams
     p.process(value.volume, value.balance, value.muted);
 }
 
+inline void pack_custom(muse::msgpack::Packer& p, const muse::audio::SoundTrackData& value)
+{
+    p.process(value.startOffset, value.clipStart, value.clipEnd, value.speed);
+}
+
+inline void unpack_custom(muse::msgpack::UnPacker& p, muse::audio::SoundTrackData& value)
+{
+    p.process(value.startOffset, value.clipStart, value.clipEnd, value.speed);
+}
+
 inline void pack_custom(muse::msgpack::Packer& p, const muse::audio::TrackParams& value)
 {
-    p.process(value.source, value.fxChain, value.auxSends, value.control);
+    p.process(value.source, value.fxChain, value.auxSends, value.control, value.soundTrack);
 }
 
 inline void unpack_custom(muse::msgpack::UnPacker& p, muse::audio::TrackParams& value)
 {
-    p.process(value.source, value.fxChain, value.auxSends, value.control);
+    p.process(value.source, value.fxChain, value.auxSends, value.control, value.soundTrack);
 }
 
 inline void pack_custom(muse::msgpack::Packer& p, const muse::audio::SoundPreset& value)
