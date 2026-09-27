@@ -37,8 +37,8 @@
 
 GTEST_API_ int main(int argc, char** argv)
 {
-    QCoreApplication::setOrganizationName("MuseScore");
-    QCoreApplication::setOrganizationDomain("musescore.org");
+    QCoreApplication::setOrganizationName("DBScore");
+    QCoreApplication::setOrganizationDomain("drumbearai.com");
 
     QGuiApplication app(argc, argv);
 

@@ -59,7 +59,7 @@ public:
     virtual async::Promise<RetVal<ScoreInfo> > downloadScoreInfo(const QUrl& sourceUrl) = 0;
     virtual async::Promise<RetVal<ScoreInfo> > downloadScoreInfo(int scoreId) = 0;
 
-    /// The MuseScore.com API is a so-called paginated API, which means that
+    /// The drumbearai.com API is a so-called paginated API, which means that
     /// you don't request all scores at once, but you request them in batches.
     /// It is similar to e.g. the list of issues on GitHub: you don't have one
     /// big list of all issues, but you have many pages, with 25 issues per page.

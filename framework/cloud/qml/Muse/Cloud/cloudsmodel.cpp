@@ -182,7 +182,7 @@ QVariant CloudsModel::dialogText(const QString& cloudCode, const QString& existi
     QVariantMap dialogTextMap;
 
     if (cloudCode == cloud::MUSESCORE_COM_CLOUD_CODE) {
-        dialogTextMap[prv::DIALOG_TITLE_TEXT] = muse::qtrc("project/save", "Publish to MuseScore.com");
+        dialogTextMap[prv::DIALOG_TITLE_TEXT] = muse::qtrc("project/save", "Publish to drumbearai.com");
 
         if (!existingScoreOrAudioUrl.isEmpty()) {
             //: The text between `<a href=\"%1\">` and `</a>` will be a clickable link to the online score in question
@@ -196,7 +196,7 @@ QVariant CloudsModel::dialogText(const QString& cloudCode, const QString& existi
 
         return dialogTextMap;
     } else if (cloudCode == cloud::AUDIO_COM_CLOUD_CODE) {
-        dialogTextMap[prv::DIALOG_TITLE_TEXT] = muse::qtrc("project/save", "Share on Audio.com");
+        dialogTextMap[prv::DIALOG_TITLE_TEXT] = muse::qtrc("project/save", "Share on DB Score");
 
         if (!existingScoreOrAudioUrl.isEmpty()) {
             //: The text between `<a href=\"%1\">` and `</a>` will be a clickable link to the online audio in question

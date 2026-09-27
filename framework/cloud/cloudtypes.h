@@ -88,7 +88,7 @@ struct ScoreOwnerInfo {
     }
 };
 
-//! Note: these values are currently supposed to be in sync with the MuseScore.com API!
+//! Note: these values are currently supposed to be in sync with the drumbearai.com API!
 enum class Visibility {
     Public = 0,
     Unlisted = 1,

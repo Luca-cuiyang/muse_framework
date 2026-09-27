@@ -74,7 +74,7 @@ inline const char* convertStatusToString(ConvertStatus status)
     return "Unknown";
 }
 
-//! NOTE: must be in sync with the musescore.com API's error_code values
+//! NOTE: must be in sync with the drumbearai.com API's error_code values
 enum class ConvertErrorCode {
     Unknown,
     UnsupportedFormat,
@@ -178,7 +178,7 @@ struct ConvertQueueItem {
 
 using ConvertQueueList = std::vector<ConvertQueueItem>;
 
-//! NOTE: must be in sync with the musescore.com API
+//! NOTE: must be in sync with the drumbearai.com API
 enum class ReviewRating {
     Bad = 0,
     Good = 1,

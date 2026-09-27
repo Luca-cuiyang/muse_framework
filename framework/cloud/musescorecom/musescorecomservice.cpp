@@ -42,10 +42,10 @@ using namespace muse::cloud;
 using namespace muse::network;
 using namespace muse::async;
 
-static const QString MUSESCORECOM_CLOUD_TITLE("MuseScore.com");
-static const QString MUSESCORECOM_CLOUD_URL("https://musescore.com");
-static const QString MUSESCORECOM_API_ROOT_URL("https://desktop.musescore.com/editor/v1");
-static const QString MUSESCORECOM_API_ROOT_URL_V2("https://desktop.musescore.com/editor/v2");
+static const QString MUSESCORECOM_CLOUD_TITLE("drumbearai.com");
+static const QString MUSESCORECOM_CLOUD_URL("https://drumbearai.com");
+static const QString MUSESCORECOM_API_ROOT_URL("https://desktop.drumbearai.com/editor/v1");
+static const QString MUSESCORECOM_API_ROOT_URL_V2("https://desktop.drumbearai.com/editor/v2");
 static const QUrl MUSESCORECOM_SCORE_MANAGER_URL(MUSESCORECOM_CLOUD_URL + "/my-scores");
 static const QUrl MUSESCORECOM_USER_INFO_API_URL(MUSESCORECOM_API_ROOT_URL + "/me");
 
@@ -56,7 +56,7 @@ static const QUrl MUSESCORECOM_SCORE_DOWNLOAD_SHARED_API_URL(MUSESCORECOM_API_RO
 static const QUrl MUSESCORECOM_UPLOAD_SCORE_API_URL(MUSESCORECOM_API_ROOT_URL + "/score/upload");
 static const QUrl MUSESCORECOM_UPLOAD_AUDIO_API_URL(MUSESCORECOM_API_ROOT_URL + "/score/audio");
 
-static const QUrl MUSESCORECOM_CONVERT_CONFIG_URL("https://musescore.com/static/musescore/studio/upload-config.json");
+static const QUrl MUSESCORECOM_CONVERT_CONFIG_URL("https://drumbearai.com/static/dbscore/studio/upload-config.json");
 static const QUrl MUSESCORECOM_CONVERT_UPLOAD_API_URL(MUSESCORECOM_API_ROOT_URL + "/score/convert/convert");
 //! NOTE: same path as the upload endpoint, DELETE instead of POST
 static const QUrl MUSESCORECOM_CONVERT_DELETE_API_URL = MUSESCORECOM_CONVERT_UPLOAD_API_URL;
@@ -64,7 +64,7 @@ static const QUrl MUSESCORECOM_CONVERT_QUEUE_API_URL(MUSESCORECOM_API_ROOT_URL +
 static const QUrl MUSESCORECOM_CONVERT_REVIEW_API_URL(MUSESCORECOM_API_ROOT_URL + "/score/convert/review");
 static const QUrl MUSESCORECOM_CONVERT_COMMENT_API_URL(MUSESCORECOM_API_ROOT_URL + "/score/convert/comment");
 
-static const QString MUSESCORE_TEXT_LOGO("https://musescore.com/static/public/musescore/img/logo/musescore-logo.svg");
+static const QString MUSESCORE_TEXT_LOGO("https://drumbearai.com/static/public/dbscore/img/logo/dbscore-logo.svg");
 
 static const QString SCORE_ID_KEY("score_id");
 static const QString EDITOR_SOURCE_KEY("editor_source");

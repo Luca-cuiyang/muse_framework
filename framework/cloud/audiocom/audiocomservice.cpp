@@ -40,9 +40,9 @@ using namespace muse::cloud;
 using namespace muse::network;
 using namespace muse::async;
 
-static const QString AUDIOCOM_CLOUD_TITLE("Audio.com");
-static const QString AUDIOCOM_CLOUD_URL("https://audio.com");
-static const QString AUDIOCOM_API_ROOT_URL("https://api.audio.com");
+static const QString AUDIOCOM_CLOUD_TITLE("DB Score");
+static const QString AUDIOCOM_CLOUD_URL("https://drumbearai.com");
+static const QString AUDIOCOM_API_ROOT_URL("https://api.drumbearai.com");
 static const QUrl AUDIOCOM_USER_INFO_API_URL(AUDIOCOM_API_ROOT_URL + "/me");
 
 static const QUrl AUDIOCOM_UPLOAD_AUDIO_API_URL(AUDIOCOM_API_ROOT_URL + "/audio");
