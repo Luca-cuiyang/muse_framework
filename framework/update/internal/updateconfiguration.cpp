@@ -59,7 +59,7 @@ void UpdateConfiguration::init()
 
 bool UpdateConfiguration::isAppUpdatable() const
 {
-    return true;
+    return false;
 }
 
 bool UpdateConfiguration::allowUpdateOnPreRelease() const
