@@ -48,6 +48,8 @@ SoundFileNode::SoundFileNode(TrackId /*trackId*/, muse::io::IODevice* device, co
         }
 
         m_clipEndFrame = static_cast<double>(m_decoder.frames());
+        m_fadeInFrames = m_data.fadeIn.raw() * m_decoder.sampleRate();
+        m_fadeOutFrames = m_data.fadeOut.raw() * m_decoder.sampleRate();
     }
 
     setName("SoundFileSource");
@@ -107,6 +109,13 @@ void SoundFileNode::doSelfProcess(float* buffer, samples_t samplesPerChannel)
                 if (i0 + 1 < totalFrames) {
                     value += static_cast<float>(frac) * (data[(i0 + 1) * inputChannels + ic] - value);
                 }
+            }
+
+            if (m_fadeInFrames > 0.0 && src < m_fadeInFrames) {
+                value *= static_cast<float>(std::clamp(src / m_fadeInFrames, 0.0, 1.0));
+            }
+            if (m_fadeOutFrames > 0.0 && src > m_clipEndFrame - m_fadeOutFrames) {
+                value *= static_cast<float>(std::clamp((m_clipEndFrame - src) / m_fadeOutFrames, 0.0, 1.0));
             }
 
             buffer[i * outputChannels + c] = value;

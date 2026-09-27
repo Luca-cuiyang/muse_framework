@@ -278,12 +278,12 @@ inline void unpack_custom(muse::msgpack::UnPacker& p, muse::audio::ControlParams
 
 inline void pack_custom(muse::msgpack::Packer& p, const muse::audio::SoundTrackData& value)
 {
-    p.process(value.startOffset, value.clipStart, value.clipEnd, value.speed);
+    p.process(value.startOffset, value.clipStart, value.clipEnd, value.speed, value.fadeIn, value.fadeOut);
 }
 
 inline void unpack_custom(muse::msgpack::UnPacker& p, muse::audio::SoundTrackData& value)
 {
-    p.process(value.startOffset, value.clipStart, value.clipEnd, value.speed);
+    p.process(value.startOffset, value.clipStart, value.clipEnd, value.speed, value.fadeIn, value.fadeOut);
 }
 
 inline void pack_custom(muse::msgpack::Packer& p, const muse::audio::TrackParams& value)

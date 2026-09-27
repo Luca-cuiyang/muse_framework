@@ -66,6 +66,8 @@ private:
     async::Notification m_readyToPlayChanged;
     double m_positionFrame = 0.0;
     double m_clipEndFrame = 0.0;
+    double m_fadeInFrames = 0.0;
+    double m_fadeOutFrames = 0.0;
 };
 }
 

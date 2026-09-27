@@ -502,6 +502,8 @@ struct SoundTrackData {
     secs_t clipStart = 0.0;     //! crop start within the audio (seconds)
     secs_t clipEnd = 0.0;       //! crop end within the audio (seconds); 0 = until end
     float speed = 1.f;          //! playback speed multiplier (1.0 = native tempo)
+    secs_t fadeIn = 0.0;
+    secs_t fadeOut = 0.0;
 };
 
 struct TrackParams {
