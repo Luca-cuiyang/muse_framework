@@ -88,6 +88,8 @@ else()
         internal/nodes/mixernode.h
         internal/nodes/eventaudionode.cpp
         internal/nodes/eventaudionode.h
+        internal/nodes/soundfilenode.cpp
+        internal/nodes/soundfilenode.h
         internal/nodes/fxnode.cpp
         internal/nodes/fxnode.h
         internal/nodes/fxchain.cpp
@@ -159,6 +161,8 @@ else()
         # codecs
         internal/codecs/vorbisdecoder.cpp
         internal/codecs/vorbisdecoder.h
+        internal/codecs/wavdecoder.cpp
+        internal/codecs/wavdecoder.h
     )
 
     # vorbisdecoder.cpp includes stb_vorbis.c, which defines short macros (L, C, R)

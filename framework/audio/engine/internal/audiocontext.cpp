@@ -26,6 +26,7 @@
 #include "audio/common/audioutils.h"
 
 #include "nodes/trackchain.h"
+#include "nodes/soundfilenode.h"
 
 #include "contextplayer.h"
 
@@ -157,17 +158,41 @@ RetVal2<TrackId, TrackParams> AudioContext::addTrack(const std::string& trackNam
     }
 
     TrackId trackId = newTrackId();
+
+    std::shared_ptr<SoundFileNode> source = std::make_shared<SoundFileNode>(trackId, playbackData);
+    if (!source->isValid()) {
+        return RetType::make_ret(Err::InvalidAudioFilePath);
+    }
+
+    AutomationControlNodePtr controlNode = std::make_shared<AutomationControlNode>();
+    controlNode->setPlayheadPosition(std::static_pointer_cast<IPlayheadPosition>(m_player));
+
+    TrackChainPtr trackChain = std::make_shared<TrackChain>(trackId, trackName);
+    trackChain->setOutputSpec(outputSpec());
+    trackChain->setMode(mode());
+    trackChain->setSource(source);
+    trackChain->setFxChain(nullptr);
+    trackChain->setControl(controlNode);
+    trackChain->setSignal(std::make_shared<SignalNode>());
+    trackChain->rebuild();
+
+    Ret ret = m_mixer->addTrack(trackChain, params.auxSends);
+    if (!ret) {
+        return RetType::make_ret(ret);
+    }
+
     Track track;
     track.type = TrackType::Sound_track;
     track.id = trackId;
     track.name = trackName;
     track.params = params;
-    //! NOT IMPLEMENTED YET
-    // track.chain = ...
+    track.chain = trackChain;
+
+    track.params.source = source->inputParams();
 
     doAddTrack(track);
 
-    return RetType::make_ok(trackId, { });
+    return RetType::make_ok(trackId, track.params);
 }
 
 RetVal2<TrackId, TrackParams> AudioContext::addTrack(const std::string& trackName,
