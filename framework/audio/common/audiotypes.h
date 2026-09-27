@@ -497,11 +497,19 @@ struct AudioSourceParams {
 
 using AudioInputParams = AudioSourceParams;
 
+struct SoundTrackData {
+    secs_t startOffset = 0.0;   //! score time (seconds) where the audio starts
+    secs_t clipStart = 0.0;     //! crop start within the audio (seconds)
+    secs_t clipEnd = 0.0;       //! crop end within the audio (seconds); 0 = until end
+    float speed = 1.f;          //! playback speed multiplier (1.0 = native tempo)
+};
+
 struct TrackParams {
     AudioInputParams source;
     AudioFxChain fxChain;
     AuxSendsParams auxSends;
     ControlParams control;
+    SoundTrackData soundTrack;
 };
 
 struct AudioSignalVal {

@@ -159,7 +159,7 @@ RetVal2<TrackId, TrackParams> AudioContext::addTrack(const std::string& trackNam
 
     TrackId trackId = newTrackId();
 
-    std::shared_ptr<SoundFileNode> source = std::make_shared<SoundFileNode>(trackId, playbackData);
+    std::shared_ptr<SoundFileNode> source = std::make_shared<SoundFileNode>(trackId, playbackData, params.soundTrack);
     if (!source->isValid()) {
         return RetType::make_ret(Err::InvalidAudioFilePath);
     }
@@ -189,6 +189,7 @@ RetVal2<TrackId, TrackParams> AudioContext::addTrack(const std::string& trackNam
     track.chain = trackChain;
 
     track.params.source = source->inputParams();
+    onControlParamsChanged(track, params.control);
 
     doAddTrack(track);
 

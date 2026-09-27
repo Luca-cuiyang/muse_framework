@@ -32,7 +32,7 @@ namespace muse::audio::engine {
 class SoundFileNode : public AudioSourceNode
 {
 public:
-    explicit SoundFileNode(TrackId trackId, muse::io::IODevice* device);
+    explicit SoundFileNode(TrackId trackId, muse::io::IODevice* device, const SoundTrackData& data = SoundTrackData());
     ~SoundFileNode() override = default;
 
     bool isValid() const { return m_decoder.isValid(); }
@@ -60,10 +60,12 @@ private:
     void doSelfProcess(float* buffer, samples_t samplesPerChannel) override;
 
     WavDecoder m_decoder;
+    SoundTrackData m_data;
     AudioInputParams m_params;
     async::Channel<AudioInputParams> m_paramsChanges;
     async::Notification m_readyToPlayChanged;
     double m_positionFrame = 0.0;
+    double m_clipEndFrame = 0.0;
 };
 }
 
