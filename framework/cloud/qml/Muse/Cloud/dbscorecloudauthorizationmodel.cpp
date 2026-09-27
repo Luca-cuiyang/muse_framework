@@ -20,40 +20,40 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "musescorecomauthorizationmodel.h"
+#include "dbscorecloudauthorizationmodel.h"
 
 using namespace muse::cloud;
 
-MuseScoreComAuthorizationModel::MuseScoreComAuthorizationModel(QObject* parent)
+DBScoreCloudAuthorizationModel::DBScoreCloudAuthorizationModel(QObject* parent)
     : QObject(parent), Contextable(muse::iocCtxForQmlObject(this))
 {
 }
 
-void MuseScoreComAuthorizationModel::load()
+void DBScoreCloudAuthorizationModel::load()
 {
     emit userAuthorizedChanged();
 
-    museScoreComService()->authorization()->userAuthorized().ch.onReceive(this, [this](bool) {
+    dbScoreCloudService()->authorization()->userAuthorized().ch.onReceive(this, [this](bool) {
         emit userAuthorizedChanged();
     });
 }
 
-bool MuseScoreComAuthorizationModel::userAuthorized() const
+bool DBScoreCloudAuthorizationModel::userAuthorized() const
 {
-    return museScoreComService()->authorization()->userAuthorized().val;
+    return dbScoreCloudService()->authorization()->userAuthorized().val;
 }
 
-void MuseScoreComAuthorizationModel::createAccount()
+void DBScoreCloudAuthorizationModel::createAccount()
 {
-    museScoreComService()->authorization()->signUp();
+    dbScoreCloudService()->authorization()->signUp();
 }
 
-void MuseScoreComAuthorizationModel::signIn()
+void DBScoreCloudAuthorizationModel::signIn()
 {
-    museScoreComService()->authorization()->signIn();
+    dbScoreCloudService()->authorization()->signIn();
 }
 
-void MuseScoreComAuthorizationModel::signOut()
+void DBScoreCloudAuthorizationModel::signOut()
 {
-    museScoreComService()->authorization()->signOut();
+    dbScoreCloudService()->authorization()->signOut();
 }

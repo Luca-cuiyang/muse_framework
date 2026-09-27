@@ -24,10 +24,10 @@
 
 #include <gmock/gmock.h>
 
-#include "cloud/audiocom/iaudiocomservice.h"
+#include "cloud/dbscoreaudio/idbscoreaudioservice.h"
 
 namespace muse::cloud {
-class AudioComServiceMock : public IAudioComService
+class DBScoreAudioServiceMock : public IDBScoreAudioService
 {
 public:
     MOCK_METHOD(IAuthorizationServicePtr, authorization, (), (override));

@@ -31,11 +31,11 @@
 
 #include "types/id.h"
 
-#include "musescorecom/converttypes.h"
+#include "dbscorecloud/converttypes.h"
 
 namespace muse::cloud {
-static const QString MUSESCORE_COM_CLOUD_CODE = "musescorecom";
-static const QString AUDIO_COM_CLOUD_CODE = "audiocom";
+static const QString DBSCORE_CLOUD_CODE = "dbscorecloud";
+static const QString DBSCORE_AUDIO_CODE = "dbscoreaudio";
 
 struct CloudInfo {
     QString code;
@@ -156,7 +156,7 @@ struct ScoresList {
 
     std::vector<Item> items;
 
-    /// See explanation at `IMuseScoreComService::downloadScoresList`
+    /// See explanation at `IDBScoreCloudService::downloadScoresList`
     struct Meta {
         int totalScoresCount = 0;
         int batchesCount = 0;

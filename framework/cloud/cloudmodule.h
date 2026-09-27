@@ -28,8 +28,8 @@
 
 namespace muse::cloud {
 class CloudConfiguration;
-class MuseScoreComService;
-class AudioComService;
+class DBScoreCloudService;
+class DBScoreAudioService;
 class CloudModule : public modularity::IModuleSetup
 {
 public:
@@ -40,9 +40,9 @@ public:
 
 private:
     std::shared_ptr<CloudConfiguration> m_cloudConfiguration;
-#ifdef MUSE_MODULE_CLOUD_MUSESCORECOM
-    std::shared_ptr<MuseScoreComService> m_museScoreComService;
+#ifdef MUSE_MODULE_CLOUD_DBSCORECLOUD
+    std::shared_ptr<DBScoreCloudService> m_dbScoreCloudService;
 #endif
-    std::shared_ptr<AudioComService> m_audioComService;
+    std::shared_ptr<DBScoreAudioService> m_dbScoreAudioService;
 };
 }

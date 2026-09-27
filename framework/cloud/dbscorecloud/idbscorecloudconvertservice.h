@@ -37,18 +37,18 @@ namespace muse::cloud {
 /// Expected call order for a conversion (OMR or Audio2Score):
 /// 1. startConvert() to submit the file(s) and start processing
 /// 2. Poll fetchQueue() and watch the item's status; once it's AwaitingReview or Done, its
-///    scoreId identifies the resulting score, already available via IMuseScoreComService
+///    scoreId identifies the resulting score, already available via IDBScoreCloudService
 /// 3. Rating the recognition quality (submitReview(), once AwaitingReview) is optional;
 ///    submitReviewComment() may attach a comment afterwards, once the review has been submitted
 /// 4. Keep polling fetchQueue() until the status is Failed, or the item disappears
 ///    from the queue (which should be treated the same as Done)
 /// 5. deleteConversion() may be called at any point to remove an item from the queue
-class IMuseScoreComConvertService : MODULE_CONTEXT_INTERFACE
+class IDBScoreCloudConvertService : MODULE_CONTEXT_INTERFACE
 {
-    INTERFACE_ID(IMuseScoreComConvertService)
+    INTERFACE_ID(IDBScoreCloudConvertService)
 
 public:
-    virtual ~IMuseScoreComConvertService() = default;
+    virtual ~IDBScoreCloudConvertService() = default;
 
     virtual async::Promise<RetVal<ConvertConfig> > fetchConfig() = 0;
 
@@ -62,5 +62,5 @@ public:
 
     virtual async::Promise<Ret> deleteConversion(ConvertType type, int id) = 0;
 };
-using IMuseScoreComConvertServicePtr = std::shared_ptr<IMuseScoreComConvertService>;
+using IDBScoreCloudConvertServicePtr = std::shared_ptr<IDBScoreCloudConvertService>;
 }

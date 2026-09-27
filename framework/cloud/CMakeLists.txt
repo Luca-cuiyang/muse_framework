@@ -34,20 +34,20 @@ target_sources(muse_cloud PRIVATE
     internal/oauthhttpserverreplyhandler.cpp
     internal/abstractcloudservice.h
     internal/abstractcloudservice.cpp
-    musescorecom/imusescorecomservice.h
-    musescorecom/imusescorecomconvertservice.h
-    musescorecom/converttypes.h
-    audiocom/iaudiocomservice.h
-    audiocom/audiocomservice.h
-    audiocom/audiocomservice.cpp
+    dbscorecloud/idbscorecloudservice.h
+    dbscorecloud/idbscorecloudconvertservice.h
+    dbscorecloud/converttypes.h
+    dbscoreaudio/idbscoreaudioservice.h
+    dbscoreaudio/dbscoreaudioservice.h
+    dbscoreaudio/dbscoreaudioservice.cpp
 )
 
-if (MUSE_MODULE_CLOUD_MUSESCORECOM)
+if (MUSE_MODULE_CLOUD_DBSCORECLOUD)
     target_sources(muse_cloud PRIVATE
-        musescorecom/musescorecomservice.cpp
-        musescorecom/musescorecomservice.h
+        dbscorecloud/dbscorecloudservice.cpp
+        dbscorecloud/dbscorecloudservice.h
     )
-    target_compile_definitions(muse_cloud PUBLIC MUSE_MODULE_CLOUD_MUSESCORECOM)
+    target_compile_definitions(muse_cloud PUBLIC MUSE_MODULE_CLOUD_DBSCORECLOUD)
 endif()
 
 target_link_libraries(muse_cloud PRIVATE Qt::Network Qt::NetworkAuth)

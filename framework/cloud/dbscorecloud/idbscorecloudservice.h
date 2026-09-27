@@ -31,7 +31,7 @@
 #include "cloud/cloudtypes.h"
 #include "cloud/iauthorizationservice.h"
 
-#include "imusescorecomconvertservice.h"
+#include "idbscorecloudconvertservice.h"
 
 class QIODevice;
 class QString;
@@ -39,16 +39,16 @@ class QString;
 using DevicePtr = std::shared_ptr<QIODevice>;
 
 namespace muse::cloud {
-class IMuseScoreComService : MODULE_GLOBAL_INTERFACE
+class IDBScoreCloudService : MODULE_GLOBAL_INTERFACE
 {
-    INTERFACE_ID(IMuseScoreComService)
+    INTERFACE_ID(IDBScoreCloudService)
 
 public:
-    virtual ~IMuseScoreComService() = default;
+    virtual ~IDBScoreCloudService() = default;
 
     virtual IAuthorizationServicePtr authorization() = 0;
 
-    virtual IMuseScoreComConvertServicePtr convert() = 0;
+    virtual IDBScoreCloudConvertServicePtr convert() = 0;
 
     virtual QUrl scoreManagerUrl() const = 0;
 

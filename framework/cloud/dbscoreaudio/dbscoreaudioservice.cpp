@@ -20,7 +20,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "audiocomservice.h"
+#include "dbscoreaudioservice.h"
 
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -40,14 +40,14 @@ using namespace muse::cloud;
 using namespace muse::network;
 using namespace muse::async;
 
-static const QString AUDIOCOM_CLOUD_TITLE("DB Score");
-static const QString AUDIOCOM_CLOUD_URL("https://drumbearai.com");
-static const QString AUDIOCOM_API_ROOT_URL("https://api.drumbearai.com");
-static const QUrl AUDIOCOM_USER_INFO_API_URL(AUDIOCOM_API_ROOT_URL + "/me");
+static const QString DBSCOREAUDIO_CLOUD_TITLE("DB Score");
+static const QString DBSCOREAUDIO_CLOUD_URL("https://drumbearai.com");
+static const QString DBSCOREAUDIO_API_ROOT_URL("https://api.drumbearai.com");
+static const QUrl DBSCOREAUDIO_USER_INFO_API_URL(DBSCOREAUDIO_API_ROOT_URL + "/me");
 
-static const QUrl AUDIOCOM_UPLOAD_AUDIO_API_URL(AUDIOCOM_API_ROOT_URL + "/audio");
+static const QUrl DBSCOREAUDIO_UPLOAD_AUDIO_API_URL(DBSCOREAUDIO_API_ROOT_URL + "/audio");
 
-static const QString AUDIOCOM_LOGO_URL(AUDIOCOM_CLOUD_URL + "/img/mu-app-logo.svg");
+static const QString DBSCOREAUDIO_LOGO_URL(DBSCOREAUDIO_CLOUD_URL + "/img/mu-app-logo.svg");
 
 static QString audioMime(const QString& audioFormat)
 {
@@ -58,7 +58,7 @@ static QString audioMime(const QString& audioFormat)
     return "audio/x-wav";
 }
 
-static RetVal<AccountInfo> parseAudioComAccountInfo(const QByteArray& data)
+static RetVal<AccountInfo> parseDBScoreAudioAccountInfo(const QByteArray& data)
 {
     QJsonParseError err;
     QJsonDocument doc = QJsonDocument::fromJson(data, &err);
@@ -67,7 +67,7 @@ static RetVal<AccountInfo> parseAudioComAccountInfo(const QByteArray& data)
     }
 
     QJsonObject user = doc.object();
-    QString profileUrl = AUDIOCOM_CLOUD_URL + "/" + user.value("username").toString();
+    QString profileUrl = DBSCOREAUDIO_CLOUD_URL + "/" + user.value("username").toString();
 
     AccountInfo info;
     info.id = user.value("id").toString();
@@ -79,46 +79,46 @@ static RetVal<AccountInfo> parseAudioComAccountInfo(const QByteArray& data)
     return RetVal<AccountInfo>::make_ok(info);
 }
 
-AudioComService::AudioComService(const modularity::ContextPtr& iocCtx, QObject* parent)
+DBScoreAudioService::DBScoreAudioService(const modularity::ContextPtr& iocCtx, QObject* parent)
     : AbstractCloudService(iocCtx, parent)
 {
 }
 
-IAuthorizationServicePtr AudioComService::authorization()
+IAuthorizationServicePtr DBScoreAudioService::authorization()
 {
     return shared_from_this();
 }
 
-CloudInfo AudioComService::cloudInfo() const
+CloudInfo DBScoreAudioService::cloudInfo() const
 {
     return {
-        AUDIO_COM_CLOUD_CODE,
-        AUDIOCOM_CLOUD_TITLE,
-        AUDIOCOM_CLOUD_URL,
-        AUDIOCOM_LOGO_URL,
+        DBSCORE_AUDIO_CODE,
+        DBSCOREAUDIO_CLOUD_TITLE,
+        DBSCOREAUDIO_CLOUD_URL,
+        DBSCOREAUDIO_LOGO_URL,
         logoColor()
     };
 }
 
-QUrl AudioComService::projectManagerUrl() const
+QUrl DBScoreAudioService::projectManagerUrl() const
 {
     return accountInfo().profileUrl.toString() + "/projects";
 }
 
-AbstractCloudService::ServerConfig AudioComService::serverConfig() const
+AbstractCloudService::ServerConfig DBScoreAudioService::serverConfig() const
 {
     ServerConfig serverConfig;
-    serverConfig.serverCode = AUDIO_COM_CLOUD_CODE;
-    serverConfig.serverUrl = AUDIOCOM_CLOUD_URL;
+    serverConfig.serverCode = DBSCORE_AUDIO_CODE;
+    serverConfig.serverUrl = DBSCOREAUDIO_CLOUD_URL;
 
-    serverConfig.serverAvailabilityUrl = AUDIOCOM_API_ROOT_URL + "/system/healthcheck";
+    serverConfig.serverAvailabilityUrl = DBSCOREAUDIO_API_ROOT_URL + "/system/healthcheck";
 
-    serverConfig.authorizationUrl = AUDIOCOM_CLOUD_URL + "/auth/sign-in";
-    serverConfig.signUpUrl = AUDIOCOM_CLOUD_URL + "/auth/sign-up";
-    serverConfig.signInSuccessUrl = AUDIOCOM_CLOUD_URL + "/my-audio?muAuthSuccess=true";
+    serverConfig.authorizationUrl = DBSCOREAUDIO_CLOUD_URL + "/auth/sign-in";
+    serverConfig.signUpUrl = DBSCOREAUDIO_CLOUD_URL + "/auth/sign-up";
+    serverConfig.signInSuccessUrl = DBSCOREAUDIO_CLOUD_URL + "/my-audio?muAuthSuccess=true";
 
-    serverConfig.accessTokenUrl = AUDIOCOM_API_ROOT_URL + "/auth/token";
-    serverConfig.refreshApiUrl = AUDIOCOM_API_ROOT_URL + "/auth/token";
+    serverConfig.accessTokenUrl = DBSCOREAUDIO_API_ROOT_URL + "/auth/token";
+    serverConfig.refreshApiUrl = DBSCOREAUDIO_API_ROOT_URL + "/auth/token";
 
     serverConfig.headers = headers();
 
@@ -141,7 +141,7 @@ AbstractCloudService::ServerConfig AudioComService::serverConfig() const
     return serverConfig;
 }
 
-RequestHeaders AudioComService::headers(const QString& token) const
+RequestHeaders DBScoreAudioService::headers(const QString& token) const
 {
     RequestHeaders headers = defaultHeaders();
     headers.rawHeaders["Accept"] = "application/json";
@@ -151,13 +151,13 @@ RequestHeaders AudioComService::headers(const QString& token) const
     return headers;
 }
 
-Promise<Ret> AudioComService::downloadAccountInfo()
+Promise<Ret> DBScoreAudioService::downloadAccountInfo()
 {
     TRACEFUNC;
 
     return make_promise<Ret>([this](auto resolve, auto) {
         auto receivedData = std::make_shared<QBuffer>();
-        RetVal<Progress> progress = m_networkManager->get(AUDIOCOM_USER_INFO_API_URL, receivedData, headers());
+        RetVal<Progress> progress = m_networkManager->get(DBSCOREAUDIO_USER_INFO_API_URL, receivedData, headers());
         if (!progress.ret) {
             return resolve(progress.ret);
         }
@@ -169,7 +169,7 @@ Promise<Ret> AudioComService::downloadAccountInfo()
                 return;
             }
 
-            RetVal<AccountInfo> info = parseAudioComAccountInfo(receivedData->data());
+            RetVal<AccountInfo> info = parseDBScoreAudioAccountInfo(receivedData->data());
             if (!info.ret) {
                 (void)resolve(info.ret);
                 return;
@@ -188,7 +188,7 @@ Promise<Ret> AudioComService::downloadAccountInfo()
     });
 }
 
-Promise<Ret> AudioComService::updateTokens()
+Promise<Ret> DBScoreAudioService::updateTokens()
 {
     TRACEFUNC;
 
@@ -236,7 +236,7 @@ Promise<Ret> AudioComService::updateTokens()
     });
 }
 
-ProgressPtr AudioComService::uploadAudio(DevicePtr audioData, const QString& audioFormat, const QString& title, const QUrl& existingUrl,
+ProgressPtr DBScoreAudioService::uploadAudio(DevicePtr audioData, const QString& audioFormat, const QString& title, const QUrl& existingUrl,
                                          Visibility visibility, bool replaceExisting)
 {
     ProgressPtr progress = std::make_shared<Progress>();
@@ -259,7 +259,7 @@ ProgressPtr AudioComService::uploadAudio(DevicePtr audioData, const QString& aud
         ValMap audioMap;
         audioMap["editUrl"] = Val(QString("%2/audio/%3/edit").arg(
                                       accountInfo().collectionUrl.toString(), m_currentUploadingAudioSlug));
-        audioMap["url"] = Val(AUDIOCOM_CLOUD_URL + "/audio/" + m_currentUploadingAudioId);
+        audioMap["url"] = Val(DBSCOREAUDIO_CLOUD_URL + "/audio/" + m_currentUploadingAudioId);
         result.val = Val(audioMap);
     };
 
@@ -280,7 +280,7 @@ ProgressPtr AudioComService::uploadAudio(DevicePtr audioData, const QString& aud
     return progress;
 }
 
-Promise<Ret> AudioComService::uploadNewAudio(DevicePtr audioData, const QString& audioFormat, const QString& title, const QUrl& url,
+Promise<Ret> DBScoreAudioService::uploadNewAudio(DevicePtr audioData, const QString& audioFormat, const QString& title, const QUrl& url,
                                              Visibility visibility, ProgressPtr progress)
 {
     std::weak_ptr<QIODevice> audioDataWeakPtr = audioData; // prevents memory leak
@@ -301,7 +301,7 @@ Promise<Ret> AudioComService::uploadNewAudio(DevicePtr audioData, const QString&
     });
 }
 
-Promise<Ret> AudioComService::replaceExistingAudio(DevicePtr audioData, const QString& audioFormat, const QString& title, const QUrl& url,
+Promise<Ret> DBScoreAudioService::replaceExistingAudio(DevicePtr audioData, const QString& audioFormat, const QString& title, const QUrl& url,
                                                    Visibility visibility, ProgressPtr progress)
 {
     std::weak_ptr<QIODevice> audioDataWeakPtr = audioData; // prevents memory leak
@@ -331,7 +331,7 @@ Promise<Ret> AudioComService::replaceExistingAudio(DevicePtr audioData, const QS
     });
 }
 
-Promise<Ret> AudioComService::doUploadAudio(DevicePtr audioData, const QString& audioFormat, ProgressPtr progress)
+Promise<Ret> DBScoreAudioService::doUploadAudio(DevicePtr audioData, const QString& audioFormat, ProgressPtr progress)
 {
     TRACEFUNC;
 
@@ -387,10 +387,10 @@ Promise<Ret> AudioComService::doUploadAudio(DevicePtr audioData, const QString& 
     });
 }
 
-async::Promise<Ret> AudioComService::doUpdateVisibility(const QUrl& url, Visibility visibility)
+async::Promise<Ret> DBScoreAudioService::doUpdateVisibility(const QUrl& url, Visibility visibility)
 {
     return make_promise<Ret>([this, url, visibility](auto resolve, auto) {
-        QUrl patchUrl(AUDIOCOM_API_ROOT_URL + "/audio/" + idFromCloudUrl(url).toQString());
+        QUrl patchUrl(DBSCOREAUDIO_API_ROOT_URL + "/audio/" + idFromCloudUrl(url).toQString());
 
         QJsonObject json;
         json["public"] = visibility == Visibility::Public;
@@ -412,7 +412,7 @@ async::Promise<Ret> AudioComService::doUpdateVisibility(const QUrl& url, Visibil
     });
 }
 
-Promise<Ret> AudioComService::doCreateAudio(const QString& title, int size,
+Promise<Ret> DBScoreAudioService::doCreateAudio(const QString& title, int size,
                                             const QString& audioFormat,
                                             const QUrl& existingUrl, Visibility visibility, bool replaceExisting)
 {
@@ -429,10 +429,10 @@ Promise<Ret> AudioComService::doCreateAudio(const QString& title, int size,
 
         QUrl postUrl;
         if (replaceExisting) {
-            postUrl = QUrl(AUDIOCOM_API_ROOT_URL + "/audio/" + idFromCloudUrl(existingUrl).toQString() + "/source");
+            postUrl = QUrl(DBSCOREAUDIO_API_ROOT_URL + "/audio/" + idFromCloudUrl(existingUrl).toQString() + "/source");
         } else {
             json["public"] = visibility == Visibility::Public;
-            postUrl = AUDIOCOM_UPLOAD_AUDIO_API_URL;
+            postUrl = DBSCOREAUDIO_UPLOAD_AUDIO_API_URL;
         }
 
         QByteArray jsonData = QString::fromStdString(QJsonDocument(json).toJson(QJsonDocument::JsonFormat::Compact).toStdString()).toUtf8();
@@ -466,7 +466,7 @@ Promise<Ret> AudioComService::doCreateAudio(const QString& title, int size,
     });
 }
 
-void AudioComService::notifyServerAboutFailUpload(const QUrl& failUrl, const QString& token)
+void DBScoreAudioService::notifyServerAboutFailUpload(const QUrl& failUrl, const QString& token)
 {
     RetVal<Progress> progress = m_networkManager->del(failUrl, nullptr, headers(token));
     if (!progress.ret) {
@@ -481,7 +481,7 @@ void AudioComService::notifyServerAboutFailUpload(const QUrl& failUrl, const QSt
     });
 }
 
-void AudioComService::notifyServerAboutSuccessUpload(const QUrl& successUrl, const QString& token)
+void DBScoreAudioService::notifyServerAboutSuccessUpload(const QUrl& successUrl, const QString& token)
 {
     auto outData = std::make_shared<QBuffer>();
     RetVal<Progress> progress = m_networkManager->post(successUrl, outData, nullptr, headers(token));

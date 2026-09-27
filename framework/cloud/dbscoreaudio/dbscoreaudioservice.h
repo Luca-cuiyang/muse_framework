@@ -32,16 +32,16 @@
 
 #include "internal/abstractcloudservice.h"
 
-#include "audiocom/iaudiocomservice.h"
+#include "dbscoreaudio/idbscoreaudioservice.h"
 
 namespace muse::cloud {
-class AudioComService : public IAudioComService, public AbstractCloudService, public std::enable_shared_from_this<AudioComService>
+class DBScoreAudioService : public IDBScoreAudioService, public AbstractCloudService, public std::enable_shared_from_this<DBScoreAudioService>
 {
     muse::GlobalInject<ICloudConfiguration> configuration;
     muse::GlobalInject<network::INetworkManagerCreator> networkManagerCreator;
 
 public:
-    explicit AudioComService(const modularity::ContextPtr& iocCtx, QObject* parent = nullptr);
+    explicit DBScoreAudioService(const modularity::ContextPtr& iocCtx, QObject* parent = nullptr);
 
     IAuthorizationServicePtr authorization() override;
 

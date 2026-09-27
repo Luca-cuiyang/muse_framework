@@ -20,7 +20,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "musescorecomservice.h"
+#include "dbscorecloudservice.h"
 
 #include <QBuffer>
 #include <QEventLoop>
@@ -42,27 +42,27 @@ using namespace muse::cloud;
 using namespace muse::network;
 using namespace muse::async;
 
-static const QString MUSESCORECOM_CLOUD_TITLE("drumbearai.com");
-static const QString MUSESCORECOM_CLOUD_URL("https://drumbearai.com");
-static const QString MUSESCORECOM_API_ROOT_URL("https://desktop.drumbearai.com/editor/v1");
-static const QString MUSESCORECOM_API_ROOT_URL_V2("https://desktop.drumbearai.com/editor/v2");
-static const QUrl MUSESCORECOM_SCORE_MANAGER_URL(MUSESCORECOM_CLOUD_URL + "/my-scores");
-static const QUrl MUSESCORECOM_USER_INFO_API_URL(MUSESCORECOM_API_ROOT_URL + "/me");
+static const QString DBSCORECLOUD_CLOUD_TITLE("drumbearai.com");
+static const QString DBSCORECLOUD_CLOUD_URL("https://drumbearai.com");
+static const QString DBSCORECLOUD_API_ROOT_URL("https://desktop.drumbearai.com/editor/v1");
+static const QString DBSCORECLOUD_API_ROOT_URL_V2("https://desktop.drumbearai.com/editor/v2");
+static const QUrl DBSCORECLOUD_SCORE_MANAGER_URL(DBSCORECLOUD_CLOUD_URL + "/my-scores");
+static const QUrl DBSCORECLOUD_USER_INFO_API_URL(DBSCORECLOUD_API_ROOT_URL + "/me");
 
-static const QUrl MUSESCORECOM_SCORE_INFO_API_URL(MUSESCORECOM_API_ROOT_URL + "/score/info");
-static const QUrl MUSESCORECOM_SCORES_LIST_API_URL(MUSESCORECOM_API_ROOT_URL_V2 + "/collection/scores");
-static const QUrl MUSESCORECOM_SCORE_DOWNLOAD_API_URL(MUSESCORECOM_API_ROOT_URL + "/score/download");
-static const QUrl MUSESCORECOM_SCORE_DOWNLOAD_SHARED_API_URL(MUSESCORECOM_API_ROOT_URL + "/score/download-shared");
-static const QUrl MUSESCORECOM_UPLOAD_SCORE_API_URL(MUSESCORECOM_API_ROOT_URL + "/score/upload");
-static const QUrl MUSESCORECOM_UPLOAD_AUDIO_API_URL(MUSESCORECOM_API_ROOT_URL + "/score/audio");
+static const QUrl DBSCORECLOUD_SCORE_INFO_API_URL(DBSCORECLOUD_API_ROOT_URL + "/score/info");
+static const QUrl DBSCORECLOUD_SCORES_LIST_API_URL(DBSCORECLOUD_API_ROOT_URL_V2 + "/collection/scores");
+static const QUrl DBSCORECLOUD_SCORE_DOWNLOAD_API_URL(DBSCORECLOUD_API_ROOT_URL + "/score/download");
+static const QUrl DBSCORECLOUD_SCORE_DOWNLOAD_SHARED_API_URL(DBSCORECLOUD_API_ROOT_URL + "/score/download-shared");
+static const QUrl DBSCORECLOUD_UPLOAD_SCORE_API_URL(DBSCORECLOUD_API_ROOT_URL + "/score/upload");
+static const QUrl DBSCORECLOUD_UPLOAD_AUDIO_API_URL(DBSCORECLOUD_API_ROOT_URL + "/score/audio");
 
-static const QUrl MUSESCORECOM_CONVERT_CONFIG_URL("https://drumbearai.com/static/dbscore/studio/upload-config.json");
-static const QUrl MUSESCORECOM_CONVERT_UPLOAD_API_URL(MUSESCORECOM_API_ROOT_URL + "/score/convert/convert");
+static const QUrl DBSCORECLOUD_CONVERT_CONFIG_URL("https://drumbearai.com/static/dbscore/studio/upload-config.json");
+static const QUrl DBSCORECLOUD_CONVERT_UPLOAD_API_URL(DBSCORECLOUD_API_ROOT_URL + "/score/convert/convert");
 //! NOTE: same path as the upload endpoint, DELETE instead of POST
-static const QUrl MUSESCORECOM_CONVERT_DELETE_API_URL = MUSESCORECOM_CONVERT_UPLOAD_API_URL;
-static const QUrl MUSESCORECOM_CONVERT_QUEUE_API_URL(MUSESCORECOM_API_ROOT_URL + "/score/convert/queue");
-static const QUrl MUSESCORECOM_CONVERT_REVIEW_API_URL(MUSESCORECOM_API_ROOT_URL + "/score/convert/review");
-static const QUrl MUSESCORECOM_CONVERT_COMMENT_API_URL(MUSESCORECOM_API_ROOT_URL + "/score/convert/comment");
+static const QUrl DBSCORECLOUD_CONVERT_DELETE_API_URL = DBSCORECLOUD_CONVERT_UPLOAD_API_URL;
+static const QUrl DBSCORECLOUD_CONVERT_QUEUE_API_URL(DBSCORECLOUD_API_ROOT_URL + "/score/convert/queue");
+static const QUrl DBSCORECLOUD_CONVERT_REVIEW_API_URL(DBSCORECLOUD_API_ROOT_URL + "/score/convert/review");
+static const QUrl DBSCORECLOUD_CONVERT_COMMENT_API_URL(DBSCORECLOUD_API_ROOT_URL + "/score/convert/comment");
 
 static const QString MUSESCORE_TEXT_LOGO("https://drumbearai.com/static/public/dbscore/img/logo/dbscore-logo.svg");
 
@@ -76,7 +76,7 @@ static int generateFileNameNumber()
     return QRandomGenerator::global()->generate() % 100000;
 }
 
-static RetVal<AccountInfo> parseMuseScoreComAccountInfo(const QByteArray& data)
+static RetVal<AccountInfo> parseDBScoreCloudAccountInfo(const QByteArray& data)
 {
     QJsonParseError err;
     QJsonDocument doc = QJsonDocument::fromJson(data, &err);
@@ -430,7 +430,7 @@ static LinkSource linkSourceFromApiString(const QString& str)
     }
 
     if (str.compare("audio_com", Qt::CaseInsensitive) == 0) {
-        return LinkSource::AudioCom;
+        return LinkSource::DBScoreAudio;
     }
 
     LOGW() << "Unknown link source: \"" << str << "\"";
@@ -574,49 +574,49 @@ static QHttpMultiPartPtr makeMultiPartForComment(ConvertType type, int id, const
     return multiPart;
 }
 
-MuseScoreComService::MuseScoreComService(const modularity::ContextPtr& iocCtx, QObject* parent)
+DBScoreCloudService::DBScoreCloudService(const modularity::ContextPtr& iocCtx, QObject* parent)
     : AbstractCloudService(iocCtx, parent)
 {
 }
 
-IAuthorizationServicePtr MuseScoreComService::authorization()
+IAuthorizationServicePtr DBScoreCloudService::authorization()
 {
     return shared_from_this();
 }
 
-IMuseScoreComConvertServicePtr MuseScoreComService::convert()
+IDBScoreCloudConvertServicePtr DBScoreCloudService::convert()
 {
     return shared_from_this();
 }
 
-CloudInfo MuseScoreComService::cloudInfo() const
+CloudInfo DBScoreCloudService::cloudInfo() const
 {
     return {
-        MUSESCORE_COM_CLOUD_CODE,
-        MUSESCORECOM_CLOUD_TITLE,
-        MUSESCORECOM_CLOUD_URL,
+        DBSCORE_CLOUD_CODE,
+        DBSCORECLOUD_CLOUD_TITLE,
+        DBSCORECLOUD_CLOUD_URL,
         MUSESCORE_TEXT_LOGO,
         logoColor()
     };
 }
 
-QUrl MuseScoreComService::scoreManagerUrl() const
+QUrl DBScoreCloudService::scoreManagerUrl() const
 {
-    return MUSESCORECOM_CLOUD_URL + "/my-scores";
+    return DBSCORECLOUD_CLOUD_URL + "/my-scores";
 }
 
-AbstractCloudService::ServerConfig MuseScoreComService::serverConfig() const
+AbstractCloudService::ServerConfig DBScoreCloudService::serverConfig() const
 {
     ServerConfig serverConfig;
-    serverConfig.serverCode = MUSESCORE_COM_CLOUD_CODE;
-    serverConfig.serverUrl = MUSESCORECOM_CLOUD_URL;
-    serverConfig.serverAvailabilityUrl = MUSESCORECOM_API_ROOT_URL + "/system/healthcheck";
-    serverConfig.authorizationUrl = MUSESCORECOM_CLOUD_URL + "/oauth/authorize";
-    serverConfig.signUpUrl = MUSESCORECOM_CLOUD_URL + "/oauth/authorize-new";
-    serverConfig.signInSuccessUrl = MUSESCORECOM_CLOUD_URL + "/desktop-signin-success";
-    serverConfig.accessTokenUrl = MUSESCORECOM_API_ROOT_URL + "/oauth/token";
-    serverConfig.refreshApiUrl = MUSESCORECOM_API_ROOT_URL + "/oauth/refresh";
-    serverConfig.logoutApiUrl = MUSESCORECOM_API_ROOT_URL + "/oauth/logout";
+    serverConfig.serverCode = DBSCORE_CLOUD_CODE;
+    serverConfig.serverUrl = DBSCORECLOUD_CLOUD_URL;
+    serverConfig.serverAvailabilityUrl = DBSCORECLOUD_API_ROOT_URL + "/system/healthcheck";
+    serverConfig.authorizationUrl = DBSCORECLOUD_CLOUD_URL + "/oauth/authorize";
+    serverConfig.signUpUrl = DBSCORECLOUD_CLOUD_URL + "/oauth/authorize-new";
+    serverConfig.signInSuccessUrl = DBSCORECLOUD_CLOUD_URL + "/desktop-signin-success";
+    serverConfig.accessTokenUrl = DBSCORECLOUD_API_ROOT_URL + "/oauth/token";
+    serverConfig.refreshApiUrl = DBSCORECLOUD_API_ROOT_URL + "/oauth/refresh";
+    serverConfig.logoutApiUrl = DBSCORECLOUD_API_ROOT_URL + "/oauth/logout";
     serverConfig.headers = headers();
 
     serverConfig.authorizationParameters = {
@@ -630,7 +630,7 @@ AbstractCloudService::ServerConfig MuseScoreComService::serverConfig() const
     return serverConfig;
 }
 
-RequestHeaders MuseScoreComService::headers() const
+RequestHeaders DBScoreCloudService::headers() const
 {
     RequestHeaders headers = defaultHeaders();
     headers.rawHeaders["Accept"] = "application/json";
@@ -639,12 +639,12 @@ RequestHeaders MuseScoreComService::headers() const
     return headers;
 }
 
-Promise<Ret> MuseScoreComService::downloadAccountInfo()
+Promise<Ret> DBScoreCloudService::downloadAccountInfo()
 {
     TRACEFUNC;
 
     return make_promise<Ret>([this](auto resolve, auto) {
-        RetVal<QUrl> userInfoUrl = prepareUrlForRequest(MUSESCORECOM_USER_INFO_API_URL);
+        RetVal<QUrl> userInfoUrl = prepareUrlForRequest(DBSCORECLOUD_USER_INFO_API_URL);
         if (!userInfoUrl.ret) {
             return resolve(userInfoUrl.ret);
         }
@@ -662,7 +662,7 @@ Promise<Ret> MuseScoreComService::downloadAccountInfo()
                 return;
             }
 
-            RetVal<AccountInfo> info = parseMuseScoreComAccountInfo(receivedData->data());
+            RetVal<AccountInfo> info = parseDBScoreCloudAccountInfo(receivedData->data());
             if (!info.ret) {
                 (void)resolve(info.ret);
                 return;
@@ -681,7 +681,7 @@ Promise<Ret> MuseScoreComService::downloadAccountInfo()
     });
 }
 
-Promise<Ret> MuseScoreComService::updateTokens()
+Promise<Ret> DBScoreCloudService::updateTokens()
 {
     TRACEFUNC;
 
@@ -724,12 +724,12 @@ Promise<Ret> MuseScoreComService::updateTokens()
     });
 }
 
-Promise<RetVal<ScoreInfo> > MuseScoreComService::downloadScoreInfo(const QUrl& sourceUrl)
+Promise<RetVal<ScoreInfo> > DBScoreCloudService::downloadScoreInfo(const QUrl& sourceUrl)
 {
     return downloadScoreInfo(idFromCloudUrl(sourceUrl).toUint64());
 }
 
-Promise<RetVal<ScoreInfo> > MuseScoreComService::downloadScoreInfo(int scoreId)
+Promise<RetVal<ScoreInfo> > DBScoreCloudService::downloadScoreInfo(int scoreId)
 {
     TRACEFUNC;
 
@@ -742,12 +742,12 @@ Promise<RetVal<ScoreInfo> > MuseScoreComService::downloadScoreInfo(int scoreId)
     });
 }
 
-void MuseScoreComService::doDownloadScoreInfo(int scoreId, std::function<void(const RetVal<ScoreInfo>& res)> finished)
+void DBScoreCloudService::doDownloadScoreInfo(int scoreId, std::function<void(const RetVal<ScoreInfo>& res)> finished)
 {
     QVariantMap params;
     params[SCORE_ID_KEY] = scoreId;
 
-    RetVal<QUrl> scoreInfoUrl = prepareUrlForRequest(MUSESCORECOM_SCORE_INFO_API_URL, params);
+    RetVal<QUrl> scoreInfoUrl = prepareUrlForRequest(DBSCORECLOUD_SCORE_INFO_API_URL, params);
     if (!scoreInfoUrl.ret) {
         finished(scoreInfoUrl.ret);
         return;
@@ -769,14 +769,14 @@ void MuseScoreComService::doDownloadScoreInfo(int scoreId, std::function<void(co
     });
 }
 
-Promise<ScoresList> MuseScoreComService::downloadScoresList(int scoresPerBatch, int batchNumber)
+Promise<ScoresList> DBScoreCloudService::downloadScoresList(int scoresPerBatch, int batchNumber)
 {
     return Promise<ScoresList>([this, scoresPerBatch, batchNumber](auto resolve, auto reject) {
         QVariantMap params;
         params["per-page"] = scoresPerBatch;
         params["page"] = batchNumber;
 
-        RetVal<QUrl> scoresListUrl = prepareUrlForRequest(MUSESCORECOM_SCORES_LIST_API_URL, params);
+        RetVal<QUrl> scoresListUrl = prepareUrlForRequest(DBSCORECLOUD_SCORES_LIST_API_URL, params);
         if (!scoresListUrl.ret) {
             return reject(scoresListUrl.ret.code(), scoresListUrl.ret.toString());
         }
@@ -805,7 +805,7 @@ Promise<ScoresList> MuseScoreComService::downloadScoresList(int scoresPerBatch, 
     });
 }
 
-ProgressPtr MuseScoreComService::downloadScore(int scoreId, DevicePtr scoreData, const QString& hash, const QString& secret)
+ProgressPtr DBScoreCloudService::downloadScore(int scoreId, DevicePtr scoreData, const QString& hash, const QString& secret)
 {
     ProgressPtr progress = std::make_shared<Progress>();
     progress->start();
@@ -819,18 +819,18 @@ ProgressPtr MuseScoreComService::downloadScore(int scoreId, DevicePtr scoreData,
     return progress;
 }
 
-Promise<Ret> MuseScoreComService::doDownloadScore(int scoreId, DevicePtr scoreData,
+Promise<Ret> DBScoreCloudService::doDownloadScore(int scoreId, DevicePtr scoreData,
                                                   const QString& hash, const QString& secret, ProgressPtr progress)
 {
     TRACEFUNC;
 
-    QUrl baseDownloadUrl = MUSESCORECOM_SCORE_DOWNLOAD_API_URL;
+    QUrl baseDownloadUrl = DBSCORECLOUD_SCORE_DOWNLOAD_API_URL;
 
     QVariantMap params;
     params["score_id"] = scoreId;
 
     if (!hash.isEmpty()) {
-        baseDownloadUrl = MUSESCORECOM_SCORE_DOWNLOAD_SHARED_API_URL;
+        baseDownloadUrl = DBSCORECLOUD_SCORE_DOWNLOAD_SHARED_API_URL;
 
         params["h"] = hash;
 
@@ -862,7 +862,7 @@ Promise<Ret> MuseScoreComService::doDownloadScore(int scoreId, DevicePtr scoreDa
     });
 }
 
-ProgressPtr MuseScoreComService::uploadScore(DevicePtr scoreData, const QString& title, Visibility visibility, const QUrl& sourceUrl,
+ProgressPtr DBScoreCloudService::uploadScore(DevicePtr scoreData, const QString& title, Visibility visibility, const QUrl& sourceUrl,
                                              int revisionId)
 {
     ProgressPtr progress = std::make_shared<Progress>();
@@ -879,7 +879,7 @@ ProgressPtr MuseScoreComService::uploadScore(DevicePtr scoreData, const QString&
     return progress;
 }
 
-Promise<RetVal<bool> > MuseScoreComService::checkScoreAlreadyUploaded(const ID& scoreId)
+Promise<RetVal<bool> > DBScoreCloudService::checkScoreAlreadyUploaded(const ID& scoreId)
 {
     if (scoreId == INVALID_ID) {
         return Promise<RetVal<bool> >([](auto resolve, auto) {
@@ -907,7 +907,7 @@ Promise<RetVal<bool> > MuseScoreComService::checkScoreAlreadyUploaded(const ID& 
     });
 }
 
-Promise<Ret> MuseScoreComService::doUploadScore(DevicePtr scoreData, const QString& title,
+Promise<Ret> DBScoreCloudService::doUploadScore(DevicePtr scoreData, const QString& title,
                                                 Visibility visibility, const QUrl& sourceUrl, int revisionId,
                                                 ProgressPtr progress)
 {
@@ -920,7 +920,7 @@ Promise<Ret> MuseScoreComService::doUploadScore(DevicePtr scoreData, const QStri
             return resolve(alreadyUploaded.ret);
         }
 
-        RetVal<QUrl> uploadUrl = prepareUrlForRequest(MUSESCORECOM_UPLOAD_SCORE_API_URL);
+        RetVal<QUrl> uploadUrl = prepareUrlForRequest(DBSCORECLOUD_UPLOAD_SCORE_API_URL);
         if (!uploadUrl.ret) {
             return resolve(uploadUrl.ret);
         }
@@ -962,7 +962,7 @@ Promise<Ret> MuseScoreComService::doUploadScore(DevicePtr scoreData, const QStri
     });
 }
 
-ProgressPtr MuseScoreComService::uploadAudio(DevicePtr audioData, const QString& audioFormat, const QUrl& sourceUrl)
+ProgressPtr DBScoreCloudService::uploadAudio(DevicePtr audioData, const QString& audioFormat, const QUrl& sourceUrl)
 {
     ProgressPtr progress = std::make_shared<Progress>();
     progress->start();
@@ -976,13 +976,13 @@ ProgressPtr MuseScoreComService::uploadAudio(DevicePtr audioData, const QString&
     return progress;
 }
 
-Promise<Ret> MuseScoreComService::doUploadAudio(DevicePtr audioData, const QString& audioFormat, const QUrl& sourceUrl,
+Promise<Ret> DBScoreCloudService::doUploadAudio(DevicePtr audioData, const QString& audioFormat, const QUrl& sourceUrl,
                                                 ProgressPtr progress)
 {
     TRACEFUNC;
 
     return make_promise<Ret>([this, audioData, audioFormat, sourceUrl, progress](auto resolve, auto) {
-        RetVal<QUrl> uploadUrl = prepareUrlForRequest(MUSESCORECOM_UPLOAD_AUDIO_API_URL);
+        RetVal<QUrl> uploadUrl = prepareUrlForRequest(DBSCORECLOUD_UPLOAD_AUDIO_API_URL);
         if (!uploadUrl.ret) {
             return resolve(uploadUrl.ret);
         }
@@ -1007,11 +1007,11 @@ Promise<Ret> MuseScoreComService::doUploadAudio(DevicePtr audioData, const QStri
     });
 }
 
-Promise<RetVal<ConvertConfig> > MuseScoreComService::fetchConfig()
+Promise<RetVal<ConvertConfig> > DBScoreCloudService::fetchConfig()
 {
     return Promise<RetVal<ConvertConfig> >([this](auto resolve, auto) {
         auto receivedData = std::make_shared<QBuffer>();
-        RetVal<Progress> progress = m_networkManager->get(MUSESCORECOM_CONVERT_CONFIG_URL, receivedData, headers());
+        RetVal<Progress> progress = m_networkManager->get(DBSCORECLOUD_CONVERT_CONFIG_URL, receivedData, headers());
         if (!progress.ret) {
             return resolve(RetVal<ConvertConfig>::make_ret(progress.ret));
         }
@@ -1033,7 +1033,7 @@ Promise<RetVal<ConvertConfig> > MuseScoreComService::fetchConfig()
     });
 }
 
-ProgressPtr MuseScoreComService::startConvert(const ConvertUploadDataPtr& data)
+ProgressPtr DBScoreCloudService::startConvert(const ConvertUploadDataPtr& data)
 {
     ProgressPtr progress = std::make_shared<Progress>();
     progress->start();
@@ -1049,12 +1049,12 @@ ProgressPtr MuseScoreComService::startConvert(const ConvertUploadDataPtr& data)
     return progress;
 }
 
-Promise<Ret> MuseScoreComService::doUpload(const ConvertUploadDataPtr& data, ProgressPtr progress)
+Promise<Ret> DBScoreCloudService::doUpload(const ConvertUploadDataPtr& data, ProgressPtr progress)
 {
     TRACEFUNC;
 
     return make_promise<Ret>([this, data, progress](auto resolve, auto) {
-        RetVal<QUrl> uploadUrl = prepareUrlForRequest(MUSESCORECOM_CONVERT_UPLOAD_API_URL);
+        RetVal<QUrl> uploadUrl = prepareUrlForRequest(DBSCORECLOUD_CONVERT_UPLOAD_API_URL);
         if (!uploadUrl.ret) {
             return resolve(uploadUrl.ret);
         }
@@ -1099,7 +1099,7 @@ Promise<Ret> MuseScoreComService::doUpload(const ConvertUploadDataPtr& data, Pro
     });
 }
 
-Promise<RetVal<ConvertQueueList> > MuseScoreComService::fetchQueue()
+Promise<RetVal<ConvertQueueList> > DBScoreCloudService::fetchQueue()
 {
     return Promise<RetVal<ConvertQueueList> >([this](auto resolve, auto) {
         auto queue = std::make_shared<ConvertQueueList>();
@@ -1117,10 +1117,10 @@ Promise<RetVal<ConvertQueueList> > MuseScoreComService::fetchQueue()
     });
 }
 
-Promise<Ret> MuseScoreComService::doFetchQueue(std::shared_ptr<ConvertQueueList> queue)
+Promise<Ret> DBScoreCloudService::doFetchQueue(std::shared_ptr<ConvertQueueList> queue)
 {
     return Promise<Ret>([this, queue](auto resolve, auto) {
-        RetVal<QUrl> queueUrl = prepareUrlForRequest(MUSESCORECOM_CONVERT_QUEUE_API_URL);
+        RetVal<QUrl> queueUrl = prepareUrlForRequest(DBSCORECLOUD_CONVERT_QUEUE_API_URL);
         if (!queueUrl.ret) {
             return resolve(queueUrl.ret);
         }
@@ -1149,7 +1149,7 @@ Promise<Ret> MuseScoreComService::doFetchQueue(std::shared_ptr<ConvertQueueList>
     });
 }
 
-Promise<RetVal<ConvertResult> > MuseScoreComService::submitReview(ConvertType type, int id, ReviewRating review, const QString& comment)
+Promise<RetVal<ConvertResult> > DBScoreCloudService::submitReview(ConvertType type, int id, ReviewRating review, const QString& comment)
 {
     return Promise<RetVal<ConvertResult> >([this, type, id, review, comment](auto resolve, auto) {
         auto result = std::make_shared<ConvertResult>();
@@ -1167,11 +1167,11 @@ Promise<RetVal<ConvertResult> > MuseScoreComService::submitReview(ConvertType ty
     });
 }
 
-Promise<Ret> MuseScoreComService::doSubmitReview(ConvertType type, int id, ReviewRating review, const QString& comment,
+Promise<Ret> DBScoreCloudService::doSubmitReview(ConvertType type, int id, ReviewRating review, const QString& comment,
                                                  std::shared_ptr<ConvertResult> result)
 {
     return Promise<Ret>([this, type, id, review, comment, result](auto resolve, auto) {
-        RetVal<QUrl> url = prepareUrlForRequest(MUSESCORECOM_CONVERT_REVIEW_API_URL);
+        RetVal<QUrl> url = prepareUrlForRequest(DBSCORECLOUD_CONVERT_REVIEW_API_URL);
         if (!url.ret) {
             return resolve(url.ret);
         }
@@ -1201,21 +1201,21 @@ Promise<Ret> MuseScoreComService::doSubmitReview(ConvertType type, int id, Revie
     });
 }
 
-Promise<Ret> MuseScoreComService::deleteConversion(ConvertType type, int id)
+Promise<Ret> DBScoreCloudService::deleteConversion(ConvertType type, int id)
 {
     return executeAsyncRequest([this, type, id]() {
         return doDeleteConversion(type, id);
     });
 }
 
-Promise<Ret> MuseScoreComService::doDeleteConversion(ConvertType type, int id)
+Promise<Ret> DBScoreCloudService::doDeleteConversion(ConvertType type, int id)
 {
     return Promise<Ret>([this, type, id](auto resolve, auto) {
         QVariantMap params;
         params["type"] = convertTypeToApiString(type);
         params["id"] = id;
 
-        RetVal<QUrl> url = prepareUrlForRequest(MUSESCORECOM_CONVERT_DELETE_API_URL, params);
+        RetVal<QUrl> url = prepareUrlForRequest(DBSCORECLOUD_CONVERT_DELETE_API_URL, params);
         if (!url.ret) {
             return resolve(url.ret);
         }
@@ -1242,17 +1242,17 @@ Promise<Ret> MuseScoreComService::doDeleteConversion(ConvertType type, int id)
     });
 }
 
-Promise<Ret> MuseScoreComService::submitReviewComment(ConvertType type, int id, const QString& comment)
+Promise<Ret> DBScoreCloudService::submitReviewComment(ConvertType type, int id, const QString& comment)
 {
     return executeAsyncRequest([this, type, id, comment]() {
         return doSubmitReviewComment(type, id, comment);
     });
 }
 
-Promise<Ret> MuseScoreComService::doSubmitReviewComment(ConvertType type, int id, const QString& comment)
+Promise<Ret> DBScoreCloudService::doSubmitReviewComment(ConvertType type, int id, const QString& comment)
 {
     return Promise<Ret>([this, type, id, comment](auto resolve, auto) {
-        RetVal<QUrl> url = prepareUrlForRequest(MUSESCORECOM_CONVERT_COMMENT_API_URL);
+        RetVal<QUrl> url = prepareUrlForRequest(DBSCORECLOUD_CONVERT_COMMENT_API_URL);
         if (!url.ret) {
             return resolve(url.ret);
         }

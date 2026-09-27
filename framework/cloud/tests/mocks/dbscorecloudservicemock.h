@@ -24,14 +24,14 @@
 
 #include <gmock/gmock.h>
 
-#include "cloud/musescorecom/imusescorecomservice.h"
+#include "cloud/dbscorecloud/idbscorecloudservice.h"
 
 namespace muse::cloud {
-class MuseScoreComServiceMock : public IMuseScoreComService
+class DBScoreCloudServiceMock : public IDBScoreCloudService
 {
 public:
     MOCK_METHOD(IAuthorizationServicePtr, authorization, (), (override));
-    MOCK_METHOD(IMuseScoreComConvertServicePtr, convert, (), (override));
+    MOCK_METHOD(IDBScoreCloudConvertServicePtr, convert, (), (override));
     MOCK_METHOD(QUrl, scoreManagerUrl, (), (const, override));
 
     MOCK_METHOD(ProgressPtr, uploadScore,

@@ -31,22 +31,22 @@
 
 #include "internal/abstractcloudservice.h"
 
-#include "musescorecom/imusescorecomservice.h"
+#include "dbscorecloud/idbscorecloudservice.h"
 
 namespace muse::cloud {
-class MuseScoreComService : public IMuseScoreComService, public IMuseScoreComConvertService, public AbstractCloudService,
-    public std::enable_shared_from_this<MuseScoreComService>
+class DBScoreCloudService : public IDBScoreCloudService, public IDBScoreCloudConvertService, public AbstractCloudService,
+    public std::enable_shared_from_this<DBScoreCloudService>
 {
     GlobalInject<ICloudConfiguration> configuration;
     GlobalInject<network::INetworkManagerCreator> networkManagerCreator;
     GlobalInject<IApplication> application;
 
 public:
-    explicit MuseScoreComService(const modularity::ContextPtr& iocCtx, QObject* parent = nullptr);
+    explicit DBScoreCloudService(const modularity::ContextPtr& iocCtx, QObject* parent = nullptr);
 
     IAuthorizationServicePtr authorization() override;
 
-    IMuseScoreComConvertServicePtr convert() override;
+    IDBScoreCloudConvertServicePtr convert() override;
 
     CloudInfo cloudInfo() const override;
 
@@ -64,7 +64,7 @@ public:
     ProgressPtr downloadScore(int scoreId, DevicePtr scoreData, const QString& hash = QString(),
                               const QString& secret = QString()) override;
 
-    // IMuseScoreComConvertService
+    // IDBScoreCloudConvertService
     async::Promise<RetVal<ConvertConfig> > fetchConfig() override;
 
     ProgressPtr startConvert(const ConvertUploadDataPtr& data) override;

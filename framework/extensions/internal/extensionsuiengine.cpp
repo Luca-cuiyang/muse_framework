@@ -118,7 +118,7 @@ void ExtensionsUiEngine::setupV1()
     m_apiV1 = new apiv1::ExtApiV1(m_apiEngineV1, m_engineV1);
     m_engineV1->globalObject().setProperty("api", m_engineV1->newQObject(m_apiV1));
 
-    //! NOTE Old plugins could use standard modules (for example MuseScore.UiComponents),
+    //! NOTE Old plugins could use standard modules (for example DBScore.UiComponents),
     //! we need to think about how to limit this or quickly abandon old plugins.
     m_engineV1->addImportPath(":/qml");
 }

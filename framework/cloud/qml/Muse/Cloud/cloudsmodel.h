@@ -29,8 +29,8 @@
 #include "modularity/ioc.h"
 #include "async/asyncable.h"
 
-#include "cloud/musescorecom/imusescorecomservice.h"
-#include "cloud/audiocom/iaudiocomservice.h"
+#include "cloud/dbscorecloud/idbscorecloudservice.h"
+#include "cloud/dbscoreaudio/idbscoreaudioservice.h"
 
 namespace muse::cloud {
 class CloudsModel : public QAbstractListModel, public Contextable, public async::Asyncable
@@ -41,10 +41,10 @@ class CloudsModel : public QAbstractListModel, public Contextable, public async:
 
     QML_ELEMENT
 
-#ifdef MUSE_MODULE_CLOUD_MUSESCORECOM
-    GlobalInject<IMuseScoreComService> museScoreComService;
+#ifdef MUSE_MODULE_CLOUD_DBSCORECLOUD
+    GlobalInject<IDBScoreCloudService> dbScoreCloudService;
 #endif
-    GlobalInject<IAudioComService> audioComService;
+    GlobalInject<IDBScoreAudioService> dbScoreAudioService;
 
 public:
     explicit CloudsModel(QObject* parent = nullptr);

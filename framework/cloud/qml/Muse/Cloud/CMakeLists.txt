@@ -28,8 +28,8 @@ qt_add_qml_module(muse_cloud_qml
         cloudsmodel.h
         enums.cpp
         enums.h
-        musescorecomauthorizationmodel.cpp
-        musescorecomauthorizationmodel.h
+        dbscorecloudauthorizationmodel.cpp
+        dbscorecloudauthorizationmodel.h
     QML_FILES
         AccountAvatar.qml
         AccountInfoButton.qml

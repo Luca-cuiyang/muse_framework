@@ -23,10 +23,10 @@
 
 #include <gmock/gmock.h>
 
-#include "cloud/musescorecom/imusescorecomconvertservice.h"
+#include "cloud/dbscorecloud/idbscorecloudconvertservice.h"
 
 namespace muse::cloud {
-class MuseScoreComConvertServiceMock : public IMuseScoreComConvertService
+class DBScoreCloudConvertServiceMock : public IDBScoreCloudConvertService
 {
 public:
     MOCK_METHOD(async::Promise<RetVal<ConvertConfig> >, fetchConfig, (), (override));

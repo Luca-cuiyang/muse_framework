@@ -167,7 +167,7 @@ QVariantList CloudsModel::visibilityModel(const QString& cloudCode) const
     unlistedVisibility.insert("text", muse::qtrc("project/save", "Unlisted"));
     visibilityTypes.append(unlistedVisibility);
 
-    if (cloudCode == cloud::MUSESCORE_COM_CLOUD_CODE) {
+    if (cloudCode == cloud::DBSCORE_CLOUD_CODE) {
         QVariantMap privateVisibility;
         privateVisibility.insert("value", int(Visibility::Private));
         privateVisibility.insert("text", muse::qtrc("project/save", "Private"));
@@ -181,7 +181,7 @@ QVariant CloudsModel::dialogText(const QString& cloudCode, const QString& existi
 {
     QVariantMap dialogTextMap;
 
-    if (cloudCode == cloud::MUSESCORE_COM_CLOUD_CODE) {
+    if (cloudCode == cloud::DBSCORE_CLOUD_CODE) {
         dialogTextMap[prv::DIALOG_TITLE_TEXT] = muse::qtrc("project/save", "Publish to drumbearai.com");
 
         if (!existingScoreOrAudioUrl.isEmpty()) {
@@ -195,7 +195,7 @@ QVariant CloudsModel::dialogText(const QString& cloudCode, const QString& existi
         dialogTextMap[prv::SAVE_BUTTON_TEXT] = muse::qtrc("project/save", "Publish");
 
         return dialogTextMap;
-    } else if (cloudCode == cloud::AUDIO_COM_CLOUD_CODE) {
+    } else if (cloudCode == cloud::DBSCORE_AUDIO_CODE) {
         dialogTextMap[prv::DIALOG_TITLE_TEXT] = muse::qtrc("project/save", "Share on DB Score");
 
         if (!existingScoreOrAudioUrl.isEmpty()) {
@@ -222,10 +222,10 @@ void CloudsModel::load()
     m_clouds.clear();
 
     m_clouds = {
-#ifdef MUSE_MODULE_CLOUD_MUSESCORECOM
-        museScoreComService()->authorization(),
+#ifdef MUSE_MODULE_CLOUD_DBSCORECLOUD
+        dbScoreCloudService()->authorization(),
 #endif
-        audioComService()->authorization()
+        dbScoreAudioService()->authorization()
     };
 
     for (const IAuthorizationServicePtr& cloud : m_clouds) {

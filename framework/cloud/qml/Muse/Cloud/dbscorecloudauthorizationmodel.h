@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2025 MuseScore Limited and others
+ * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,31 +22,37 @@
 
 #pragma once
 
-#include "modularity/imoduleinterface.h"
-#include "progress.h"
+#include <QObject>
+#include <qqmlintegration.h>
 
-#include "cloud/cloudtypes.h"
+#include "modularity/ioc.h"
+#include "async/asyncable.h"
 
-class QIODevice;
-class QString;
-
-using DevicePtr = std::shared_ptr<QIODevice>;
+#include "cloud/dbscorecloud/idbscorecloudservice.h"
 
 namespace muse::cloud {
-class IAudioComService : MODULE_GLOBAL_INTERFACE
+class DBScoreCloudAuthorizationModel : public QObject, public Contextable, public async::Asyncable
 {
-    INTERFACE_ID(IAudioComService)
+    Q_OBJECT
+
+    Q_PROPERTY(bool userAuthorized READ userAuthorized NOTIFY userAuthorizedChanged)
+
+    QML_ELEMENT
+
+    GlobalInject<IDBScoreCloudService> dbScoreCloudService;
 
 public:
-    virtual ~IAudioComService() = default;
+    explicit DBScoreCloudAuthorizationModel(QObject* parent = nullptr);
 
-    virtual IAuthorizationServicePtr authorization() = 0;
+    Q_INVOKABLE void load();
 
-    virtual QUrl projectManagerUrl() const = 0;
+    bool userAuthorized() const;
 
-    virtual ProgressPtr uploadAudio(DevicePtr audioData, const QString& audioFormat, const QString& title, const QUrl& existingUrl,
-                                    Visibility visibility = Visibility::Private, bool replaceExisting = false) = 0;
+    Q_INVOKABLE void createAccount();
+    Q_INVOKABLE void signIn();
+    Q_INVOKABLE void signOut();
 
-    virtual CloudInfo cloudInfo() const = 0;
+signals:
+    void userAuthorizedChanged();
 };
 }

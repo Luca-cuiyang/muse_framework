@@ -5,7 +5,7 @@
  * MuseScore Studio
  * Music Composition & Notation
  *
- * Copyright (C) 2021 MuseScore Limited and others
+ * Copyright (C) 2025 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,37 +22,31 @@
 
 #pragma once
 
-#include <QObject>
-#include <qqmlintegration.h>
+#include "modularity/imoduleinterface.h"
+#include "progress.h"
 
-#include "modularity/ioc.h"
-#include "async/asyncable.h"
+#include "cloud/cloudtypes.h"
 
-#include "cloud/musescorecom/imusescorecomservice.h"
+class QIODevice;
+class QString;
+
+using DevicePtr = std::shared_ptr<QIODevice>;
 
 namespace muse::cloud {
-class MuseScoreComAuthorizationModel : public QObject, public Contextable, public async::Asyncable
+class IDBScoreAudioService : MODULE_GLOBAL_INTERFACE
 {
-    Q_OBJECT
-
-    Q_PROPERTY(bool userAuthorized READ userAuthorized NOTIFY userAuthorizedChanged)
-
-    QML_ELEMENT
-
-    GlobalInject<IMuseScoreComService> museScoreComService;
+    INTERFACE_ID(IDBScoreAudioService)
 
 public:
-    explicit MuseScoreComAuthorizationModel(QObject* parent = nullptr);
+    virtual ~IDBScoreAudioService() = default;
 
-    Q_INVOKABLE void load();
+    virtual IAuthorizationServicePtr authorization() = 0;
 
-    bool userAuthorized() const;
+    virtual QUrl projectManagerUrl() const = 0;
 
-    Q_INVOKABLE void createAccount();
-    Q_INVOKABLE void signIn();
-    Q_INVOKABLE void signOut();
+    virtual ProgressPtr uploadAudio(DevicePtr audioData, const QString& audioFormat, const QString& title, const QUrl& existingUrl,
+                                    Visibility visibility = Visibility::Private, bool replaceExisting = false) = 0;
 
-signals:
-    void userAuthorizedChanged();
+    virtual CloudInfo cloudInfo() const = 0;
 };
 }

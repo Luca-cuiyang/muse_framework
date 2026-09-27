@@ -73,7 +73,7 @@ QVariantMap LearnPageModel::classesAuthor() const
                                                 "Whether you are just getting started with music notation software, "
                                                 "or are a power user eager to explore advanced engraving and playback techniques, "
                                                 "my flagship online course Mastering MuseScore "
-                                                "covers everything you need to know to get the most out of MuseScore.\n\n"
+                                                "covers everything you need to know to get the most out of DBScore.\n\n"
                                                 "In addition, Mastering MuseScore features a supportive community of musicians, "
                                                 "with discussion spaces, live streams, "
                                                 "and other related courses and services to help you create your best music. "

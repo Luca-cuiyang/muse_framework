@@ -100,7 +100,7 @@ static const std::string CONVERT_ERROR_CODE_KEY("errorCode");
 enum class LinkSource {
     NoSources = 0x0,
     YouTube = 0x1,
-    AudioCom = 0x2
+    DBScoreAudio = 0x2
 };
 DECLARE_FLAGS(LinkSources, LinkSource)
 DECLARE_OPERATORS_FOR_FLAGS(LinkSources)

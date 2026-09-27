@@ -25,10 +25,10 @@
 #include "modularity/ioc.h"
 #include "interactive/iinteractiveuriregister.h"
 
-#ifdef MUSE_MODULE_CLOUD_MUSESCORECOM
-#include "musescorecom/musescorecomservice.h"
+#ifdef MUSE_MODULE_CLOUD_DBSCORECLOUD
+#include "dbscorecloud/dbscorecloudservice.h"
 #endif
-#include "audiocom/audiocomservice.h"
+#include "dbscoreaudio/dbscoreaudioservice.h"
 #include "internal/cloudconfiguration.h"
 
 using namespace muse;
@@ -44,12 +44,12 @@ void CloudModule::registerExports()
 {
     m_cloudConfiguration = std::make_shared<CloudConfiguration>(globalCtx());
     globalIoc()->registerExport<ICloudConfiguration>(moduleName(), m_cloudConfiguration);
-#ifdef MUSE_MODULE_CLOUD_MUSESCORECOM
-    m_museScoreComService = std::make_shared<MuseScoreComService>(globalCtx());
-    globalIoc()->registerExport<IMuseScoreComService>(moduleName(), m_museScoreComService);
+#ifdef MUSE_MODULE_CLOUD_DBSCORECLOUD
+    m_dbScoreCloudService = std::make_shared<DBScoreCloudService>(globalCtx());
+    globalIoc()->registerExport<IDBScoreCloudService>(moduleName(), m_dbScoreCloudService);
 #endif
-    m_audioComService = std::make_shared<AudioComService>(globalCtx());
-    globalIoc()->registerExport<IAudioComService>(moduleName(), m_audioComService);
+    m_dbScoreAudioService = std::make_shared<DBScoreAudioService>(globalCtx());
+    globalIoc()->registerExport<IDBScoreAudioService>(moduleName(), m_dbScoreAudioService);
 }
 
 void CloudModule::resolveImports()
@@ -63,8 +63,8 @@ void CloudModule::resolveImports()
 void CloudModule::onInit(const IApplication::RunMode&)
 {
     m_cloudConfiguration->init();
-#ifdef MUSE_MODULE_CLOUD_MUSESCORECOM
-    m_museScoreComService->init();
+#ifdef MUSE_MODULE_CLOUD_DBSCORECLOUD
+    m_dbScoreCloudService->init();
 #endif
-    m_audioComService->init();
+    m_dbScoreAudioService->init();
 }

@@ -41,9 +41,9 @@ static const muse::UriQuery GRAPHICSINFO_URI("muse://diagnostics/system/graphics
 static const muse::UriQuery PROFILER_URI("muse://diagnostics/system/profiler?modal=false&floating=true");
 static const muse::UriQuery NAVIGATION_TREE_URI("muse://diagnostics/navigation/tree?modal=false&floating=true");
 static const muse::UriQuery ACCESSIBLE_TREE_URI("muse://diagnostics/accessible/tree?modal=false&floating=true");
-static const muse::UriQuery ENGRAVING_ELEMENTS_URI("musescore://diagnostics/engraving/elements?modal=false&floating=true");
-static const muse::UriQuery ENGRAVING_UNDOSTACK_URI("musescore://diagnostics/engraving/undostack?modal=false&floating=true");
-static const muse::UriQuery ENGRAVING_STYLE_URI("musescore://diagnostics/engraving/style?modal=false&floating=true");
+static const muse::UriQuery ENGRAVING_ELEMENTS_URI("dbscore://diagnostics/engraving/elements?modal=false&floating=true");
+static const muse::UriQuery ENGRAVING_UNDOSTACK_URI("dbscore://diagnostics/engraving/undostack?modal=false&floating=true");
+static const muse::UriQuery ENGRAVING_STYLE_URI("dbscore://diagnostics/engraving/style?modal=false&floating=true");
 static const muse::UriQuery ACTIONS_LIST_URI("muse://diagnostics/actions/list?modal=false&floating=true");
 static const muse::UriQuery RCOMMAND_LIST_URI("muse://diagnostics/rcommand/list?modal=false&floating=true");
 

@@ -63,7 +63,7 @@ set(MUSE_MODULE_AUDIOPLUGINS_CRASHREPORT_URL "" CACHE STRING "URL where to send 
 declare_muse_module_opt(AUTOMATION ON)
 
 declare_muse_module_opt(CLOUD ON)
-option(MUSE_MODULE_CLOUD_MUSESCORECOM "Enable MuseScore.com account" ON)
+option(MUSE_MODULE_CLOUD_DBSCORECLOUD "Enable DB Score cloud account" ON)
 
 declare_muse_module_opt(DIAGNOSTICS ON)
 option(MUSE_MODULE_DIAGNOSTICS_CRASHPAD_CLIENT "Enable crashpad client" OFF) # enable on CI
