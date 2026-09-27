@@ -46,6 +46,10 @@ if (MUSE_MODULE_AUDIO AND MUSE_MODULE_AUDIO_EXPORT)
     require_dep(opusenc)
 endif()
 
+if (MUSE_MODULE_AUDIO)
+    require_dep(soundtouch)
+endif()
+
 if (MUSE_MODULE_AUDIO AND MUSE_MODULE_AUDIO_PIPEWIRE)
     require_dep(pipewire)
 endif()

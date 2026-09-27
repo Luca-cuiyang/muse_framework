@@ -26,7 +26,7 @@
 
 #include "global/io/iodevice.h"
 
-#include "../codecs/wavdecoder.h"
+#include "../codecs/audiofiledecoder.h"
 
 namespace muse::audio::engine {
 class SoundFileNode : public AudioSourceNode
@@ -59,7 +59,7 @@ private:
     void onOutputSpecChanged(const OutputSpec& spec) override;
     void doSelfProcess(float* buffer, samples_t samplesPerChannel) override;
 
-    WavDecoder m_decoder;
+    AudioFileDecoder m_decoder;
     SoundTrackData m_data;
     AudioInputParams m_params;
     async::Channel<AudioInputParams> m_paramsChanges;

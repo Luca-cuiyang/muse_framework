@@ -163,6 +163,10 @@ else()
         internal/codecs/vorbisdecoder.h
         internal/codecs/wavdecoder.cpp
         internal/codecs/wavdecoder.h
+        internal/codecs/audiofiledecoder.cpp
+        internal/codecs/audiofiledecoder.h
+        internal/codecs/timestretcher.cpp
+        internal/codecs/timestretcher.h
     )
 
     # vorbisdecoder.cpp includes stb_vorbis.c, which defines short macros (L, C, R)
@@ -170,6 +174,12 @@ else()
     # when unity build is enabled
     set_source_files_properties(
         internal/codecs/vorbisdecoder.cpp
+        PROPERTIES
+        SKIP_UNITY_BUILD_INCLUSION ON
+    )
+
+    set_source_files_properties(
+        internal/codecs/audiofiledecoder.cpp
         PROPERTIES
         SKIP_UNITY_BUILD_INCLUSION ON
     )
@@ -202,6 +212,7 @@ else()
 
     add_subdirectory(../thirdparty/fluidsynth fluidsynth)
     target_link_libraries(muse_audio_engine PRIVATE fluidsynth)
+    target_link_libraries(muse_audio_engine PRIVATE soundtouch)
 endif() # End of real engine
 
 if (MUSE_MODULE_AUDIO_EXPORT)

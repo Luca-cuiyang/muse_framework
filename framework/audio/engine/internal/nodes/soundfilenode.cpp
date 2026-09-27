@@ -39,9 +39,15 @@ SoundFileNode::SoundFileNode(TrackId /*trackId*/, muse::io::IODevice* device, co
     }
 
     if (m_decoder.isValid()) {
-        m_clipEndFrame = m_data.clipEnd.raw() > 0.0
-                             ? m_data.clipEnd.raw() * m_decoder.sampleRate()
-                             : static_cast<double>(m_decoder.frames());
+        if (m_data.clipStart.raw() > 0.0 || m_data.clipEnd.raw() > 0.0) {
+            m_decoder.crop(m_data.clipStart.raw(), m_data.clipEnd.raw());
+        }
+
+        if (std::fabs(m_data.speed - 1.f) > 0.001f) {
+            m_decoder.applyTimeStretch(m_data.speed);
+        }
+
+        m_clipEndFrame = static_cast<double>(m_decoder.frames());
     }
 
     setName("SoundFileSource");
@@ -76,7 +82,7 @@ void SoundFileNode::doSelfProcess(float* buffer, samples_t samplesPerChannel)
     const unsigned int inputChannels = m_decoder.channels();
     const double sourceRate = m_decoder.sampleRate();
     const double outputRate = m_outputSpec.sampleRate;
-    const double step = (sourceRate / outputRate) * m_data.speed;
+    const double step = sourceRate / outputRate;
     const uint64_t totalFrames = m_decoder.frames();
     const std::vector<float>& data = m_decoder.data();
 
@@ -96,9 +102,9 @@ void SoundFileNode::doSelfProcess(float* buffer, samples_t samplesPerChannel)
             const unsigned int ic = c % inputChannels;
             float value = 0.f;
 
-            if (i0 < totalFrames && static_cast<double>(i0) < m_clipEndFrame) {
+            if (i0 < totalFrames) {
                 value = data[i0 * inputChannels + ic];
-                if (i0 + 1 < totalFrames && static_cast<double>(i0 + 1) <= m_clipEndFrame) {
+                if (i0 + 1 < totalFrames) {
                     value += static_cast<float>(frac) * (data[(i0 + 1) * inputChannels + ic] - value);
                 }
             }
@@ -119,9 +125,8 @@ void SoundFileNode::seek(const TimePosition& position, const bool /*flushSound*/
     }
 
     const double scoreTime = position.time().raw();
-    const double sourceTime = (scoreTime - m_data.startOffset.raw()) * m_data.speed + m_data.clipStart.raw();
-    const double clipStartFrame = m_data.clipStart.raw() * m_decoder.sampleRate();
-    m_positionFrame = std::clamp(sourceTime * m_decoder.sampleRate(), clipStartFrame, m_clipEndFrame);
+    const double sourceTime = scoreTime - m_data.startOffset.raw();
+    m_positionFrame = std::clamp(sourceTime * m_decoder.sampleRate(), 0.0, m_clipEndFrame);
 }
 
 void SoundFileNode::flush()
