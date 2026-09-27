@@ -38,6 +38,12 @@
 #define DR_MP3_IMPLEMENTATION
 #include "thirdparty/dr_mp3.h"
 
+#define MINIMP4_IMPLEMENTATION
+#define MP4D_INFO_SUPPORTED 1
+#include "thirdparty/minimp4.h"
+
+#include "fdk-aac/aacdecoder_lib.h"
+
 using namespace muse::audio::engine;
 
 namespace {
@@ -60,6 +66,56 @@ double readAiff80(const uint8_t* p)
     }
 
     return double(mantissa) * std::pow(2.0, exponent - 16383 - 31);
+}
+
+struct Mp4MemoryCtx {
+    const std::vector<uint8_t>* bytes = nullptr;
+};
+
+int mp4ReadCallback(int64_t offset, void* buffer, size_t size, void* token)
+{
+    const Mp4MemoryCtx* ctx = static_cast<const Mp4MemoryCtx*>(token);
+    if (!ctx || !ctx->bytes || offset < 0 || size_t(offset) > ctx->bytes->size()) {
+        return 0;
+    }
+
+    const size_t available = ctx->bytes->size() - size_t(offset);
+    const size_t count = std::min(size, available);
+    std::memcpy(buffer, ctx->bytes->data() + offset, count);
+    return static_cast<int>(count);
+}
+
+bool decodeFdkFrame(HANDLE_AACDECODER decoder, const uint8_t* data, size_t size, std::vector<float>& out,
+                    unsigned int& channels, unsigned int& sampleRate)
+{
+    UCHAR* buffer[] = { const_cast<UCHAR*>(data) };
+    UINT bufferSize[] = { static_cast<UINT>(size) };
+    UINT bytesValid = static_cast<UINT>(size);
+
+    if (aacDecoder_Fill(decoder, buffer, bufferSize, &bytesValid) != AAC_DEC_OK) {
+        return false;
+    }
+
+    CStreamInfo* info = aacDecoder_GetStreamInfo(decoder);
+    if (!info || info->numChannels == 0 || info->frameSize == 0) {
+        return false;
+    }
+
+    channels = info->numChannels;
+    sampleRate = info->sampleRate;
+
+    std::vector<INT_PCM> pcm(info->frameSize * info->numChannels);
+    if (aacDecoder_DecodeFrame(decoder, pcm.data(), static_cast<INT>(pcm.size()), 0) != AAC_DEC_OK) {
+        return false;
+    }
+
+    const size_t oldSize = out.size();
+    out.resize(oldSize + pcm.size());
+    for (size_t i = 0; i < pcm.size(); ++i) {
+        out[oldSize + i] = float(pcm[i]) / 32768.f;
+    }
+
+    return true;
 }
 }
 
@@ -94,6 +150,14 @@ bool AudioFileDecoder::open(muse::io::IODevice* device)
 
     if (bytes.size() >= 4 && std::memcmp(bytes.data(), "OggS", 4) == 0) {
         return decodeOgg(bytes);
+    }
+
+    if (bytes.size() >= 12 && std::memcmp(bytes.data() + 4, "ftyp", 4) == 0) {
+        return decodeMp4(bytes);
+    }
+
+    if (bytes.size() >= 2 && bytes[0] == 0xff && (bytes[1] & 0xf0) == 0xf0) {
+        return decodeAdts(bytes);
     }
 
     if (bytes.size() >= 3 && std::memcmp(bytes.data(), "ID3", 3) == 0) {
@@ -257,6 +321,131 @@ bool AudioFileDecoder::decodeMp3(const std::vector<uint8_t>& bytes)
     drmp3_uninit(&mp3);
 
     return read == frames;
+}
+
+bool AudioFileDecoder::decodeMp4(const std::vector<uint8_t>& bytes)
+{
+    MP4D_demux_t mp4 = {};
+    Mp4MemoryCtx ctx;
+    ctx.bytes = &bytes;
+
+    if (!MP4D_open(&mp4, mp4ReadCallback, &ctx, int64_t(bytes.size()))) {
+        return false;
+    }
+
+    int audioTrack = -1;
+    for (unsigned int i = 0; i < mp4.track_count; ++i) {
+        const MP4D_track_t& track = mp4.track[i];
+        const bool isAudio = track.handler_type == 0x736f756e /* 'soun' */
+                             && track.dsi && track.dsi_bytes > 0;
+        if (isAudio) {
+            audioTrack = int(i);
+            break;
+        }
+    }
+
+    if (audioTrack < 0) {
+        MP4D_close(&mp4);
+        return false;
+    }
+
+    const MP4D_track_t& track = mp4.track[audioTrack];
+
+    HANDLE_AACDECODER decoder = aacDecoder_Open(TT_MP4_RAW, 1);
+    if (!decoder) {
+        MP4D_close(&mp4);
+        return false;
+    }
+
+    UCHAR* conf[] = { track.dsi };
+    UINT confLength[] = { static_cast<UINT>(track.dsi_bytes) };
+    if (aacDecoder_ConfigRaw(decoder, conf, confLength) != AAC_DEC_OK) {
+        aacDecoder_Close(decoder);
+        MP4D_close(&mp4);
+        return false;
+    }
+
+    std::vector<float> output;
+    unsigned int channels = 0;
+    unsigned int sampleRate = 0;
+
+    for (unsigned int sample = 0; sample < track.sample_count; ++sample) {
+        unsigned int frameBytes = 0;
+        const MP4D_file_offset_t offset = MP4D_frame_offset(&mp4, unsigned(audioTrack), sample, &frameBytes, nullptr, nullptr);
+        if (offset < 0 || frameBytes == 0 || size_t(offset) + frameBytes > bytes.size()) {
+            break;
+        }
+
+        decodeFdkFrame(decoder, bytes.data() + offset, frameBytes, output, channels, sampleRate);
+    }
+
+    aacDecoder_Close(decoder);
+    MP4D_close(&mp4);
+
+    if (output.empty() || channels == 0 || sampleRate == 0) {
+        return false;
+    }
+
+    m_channels = channels;
+    m_sampleRate = sampleRate;
+    m_data = std::move(output);
+    return true;
+}
+
+bool AudioFileDecoder::decodeAdts(const std::vector<uint8_t>& bytes)
+{
+    HANDLE_AACDECODER decoder = aacDecoder_Open(TT_MP4_ADTS, 1);
+    if (!decoder) {
+        return false;
+    }
+
+    UCHAR* buffer[] = { const_cast<UCHAR*>(bytes.data()) };
+    UINT bufferSize[] = { static_cast<UINT>(bytes.size()) };
+    UINT bytesValid = static_cast<UINT>(bytes.size());
+    if (aacDecoder_Fill(decoder, buffer, bufferSize, &bytesValid) != AAC_DEC_OK) {
+        aacDecoder_Close(decoder);
+        return false;
+    }
+
+    std::vector<float> output;
+    unsigned int channels = 0;
+    unsigned int sampleRate = 0;
+
+    while (CStreamInfo* info = aacDecoder_GetStreamInfo(decoder)) {
+        if (info->numChannels == 0 || info->frameSize == 0) {
+            break;
+        }
+
+        channels = info->numChannels;
+        sampleRate = info->sampleRate;
+
+        std::vector<INT_PCM> pcm(info->frameSize * info->numChannels);
+        const AAC_DECODER_ERROR err = aacDecoder_DecodeFrame(decoder, pcm.data(), static_cast<INT>(pcm.size()), 0);
+        if (err == AAC_DEC_NOT_ENOUGH_BITS) {
+            break;
+        }
+        if (err != AAC_DEC_OK) {
+            aacDecoder_Close(decoder);
+            return false;
+        }
+
+        const size_t oldSize = output.size();
+        output.resize(oldSize + pcm.size());
+        for (size_t i = 0; i < pcm.size(); ++i) {
+            output[oldSize + i] = float(pcm[i]) / 32768.f;
+        }
+    }
+
+    aacDecoder_Close(decoder);
+
+    if (output.empty() || channels == 0 || sampleRate == 0) {
+        return false;
+    }
+
+    m_channels = channels;
+    m_sampleRate = sampleRate;
+    m_data = std::move(output);
+    return true;
 }
 
 void AudioFileDecoder::crop(double startSeconds, double endSeconds)
