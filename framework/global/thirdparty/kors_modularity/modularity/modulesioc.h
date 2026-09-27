@@ -159,6 +159,7 @@ protected:
 
     void unregisterService(const InterfaceInfo& info)
     {
+        std::shared_ptr<IModuleInterface> destroying;
         std::map<int, OnChangedInternal> onChanges;
         {
             std::lock_guard<std::mutex> lock(m_mutex);
@@ -167,9 +168,14 @@ protected:
                 return;
             }
 
+            destroying = it->second.p;
             it->second.p = nullptr;
             onChanges = it->second.onChanges;
         }
+
+        // Destroy the service outside the lock: its destructor may (via injected
+        // members) unsubscribe from other services, which re-locks this mutex.
+        destroying.reset();
 
         for (const auto& c : onChanges) {
             c.second(nullptr);
