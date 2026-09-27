@@ -21,10 +21,10 @@ done
 # Deploy
 ################################################################
 
-APP_PATH=applebuild/mscore.app
+APP_PATH=applebuild/dbscore.app
 
 echo "otool -L pre-macdeployqt"
-otool -L ${APP_PATH}/Contents/MacOS/mscore
+otool -L ${APP_PATH}/Contents/MacOS/dbscore
 
 echo "macdeployqt"
 if $DO_SIGN; then
@@ -38,7 +38,7 @@ macdeployqt ${APP_PATH} \
     $sign_args
 
 echo "otool -L post-macdeployqt"
-otool -L ${APP_PATH}/Contents/MacOS/mscore
+otool -L ${APP_PATH}/Contents/MacOS/dbscore
 
 # Remove dSYM files
 echo "Remove dSYM files"
