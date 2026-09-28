@@ -97,14 +97,14 @@ void SoundFileNode::doSelfProcess(float* buffer, samples_t samplesPerChannel)
 
     for (samples_t i = 0; i < samplesPerChannel; ++i) {
         const double src = m_positionFrame + static_cast<double>(i) * step;
-        const uint64_t i0 = static_cast<uint64_t>(src);
-        const double frac = src - static_cast<double>(i0);
+        const uint64_t i0 = src > 0.0 ? static_cast<uint64_t>(src) : 0;
+        const double frac = src > 0.0 ? src - static_cast<double>(i0) : 0.0;
 
         for (unsigned int c = 0; c < outputChannels; ++c) {
             const unsigned int ic = c % inputChannels;
             float value = 0.f;
 
-            if (i0 < totalFrames) {
+            if (src >= 0.0 && i0 < totalFrames) {
                 value = data[i0 * inputChannels + ic];
                 if (i0 + 1 < totalFrames) {
                     value += static_cast<float>(frac) * (data[(i0 + 1) * inputChannels + ic] - value);
@@ -135,7 +135,7 @@ void SoundFileNode::seek(const TimePosition& position, const bool /*flushSound*/
 
     const double scoreTime = position.time().raw();
     const double sourceTime = scoreTime - m_data.startOffset.raw();
-    m_positionFrame = std::clamp(sourceTime * m_decoder.sampleRate(), 0.0, m_clipEndFrame);
+    m_positionFrame = std::min(sourceTime * m_decoder.sampleRate(), m_clipEndFrame);
 }
 
 void SoundFileNode::flush()
