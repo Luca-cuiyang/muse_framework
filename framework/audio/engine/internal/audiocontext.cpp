@@ -154,6 +154,7 @@ RetVal2<TrackId, TrackParams> AudioContext::addTrack(const std::string& trackNam
     using RetType = RetVal2<TrackId, TrackParams>;
 
     if (!playbackData) {
+        LOGE() << "addTrack failed: null playbackData (IODevice pointer is null)";
         return RetType::make_ret(Err::InvalidAudioFilePath);
     }
 
@@ -161,6 +162,7 @@ RetVal2<TrackId, TrackParams> AudioContext::addTrack(const std::string& trackNam
 
     std::shared_ptr<SoundFileNode> source = std::make_shared<SoundFileNode>(trackId, playbackData, params.soundTrack);
     if (!source->isValid()) {
+        LOGE() << "addTrack failed: unable to decode audio file (SoundFileNode is invalid)";
         return RetType::make_ret(Err::InvalidAudioFilePath);
     }
 

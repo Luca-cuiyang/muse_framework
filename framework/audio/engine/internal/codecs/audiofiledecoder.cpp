@@ -27,6 +27,7 @@
 #include <cstring>
 
 #include "global/types/bytearray.h"
+#include "log.h"
 
 #include "wavdecoder.h"
 #include "vorbisdecoder.h"
@@ -156,7 +157,7 @@ bool AudioFileDecoder::open(muse::io::IODevice* device)
         return decodeMp4(bytes);
     }
 
-    if (bytes.size() >= 2 && bytes[0] == 0xff && (bytes[1] & 0xf0) == 0xf0) {
+    if (bytes.size() >= 2 && bytes[0] == 0xff && (bytes[1] & 0xf0) == 0xf0 && (bytes[1] & 0x06) == 0x00) {
         return decodeAdts(bytes);
     }
 
@@ -168,6 +169,9 @@ bool AudioFileDecoder::open(muse::io::IODevice* device)
         return decodeMp3(bytes);
     }
 
+    LOGE() << "Unsupported audio format, file size: " << bytes.size()
+           << ", first bytes: " << int(head[0]) << " " << int(head[1]) << " " << int(head[2])
+           << " " << int(head[3]) << " " << int(head[4]) << " " << int(head[5]);
     return false;
 }
 
