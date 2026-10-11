@@ -50,6 +50,7 @@ public:
     virtual bool isPhoneLoggedIn() const = 0;
     virtual QString phoneMasked() const = 0;
     virtual QString phoneNickname() const = 0;
+    virtual QString avatarUrl() const = 0;
 
     virtual QString apiBaseUrl() const = 0;
     virtual QString purchasePageUrl() const = 0;

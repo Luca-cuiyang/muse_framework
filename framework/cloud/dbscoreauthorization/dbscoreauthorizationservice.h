@@ -49,6 +49,7 @@ public:
     bool isPhoneLoggedIn() const override;
     QString phoneMasked() const override;
     QString phoneNickname() const override;
+    QString avatarUrl() const override;
 
     QString apiBaseUrl() const override;
     QString purchasePageUrl() const override;

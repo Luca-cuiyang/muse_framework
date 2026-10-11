@@ -35,11 +35,14 @@ class DbScoreAccountModel : public QObject, public async::Asyncable
     Q_PROPERTY(bool phoneLoggedIn READ phoneLoggedIn NOTIFY modelChanged)
     Q_PROPERTY(QString phoneMasked READ phoneMasked NOTIFY modelChanged)
     Q_PROPERTY(QString phoneNickname READ phoneNickname NOTIFY modelChanged)
+    Q_PROPERTY(QString avatarUrl READ avatarUrl NOTIFY modelChanged)
+    Q_PROPERTY(QString avatarLetter READ avatarLetter NOTIFY modelChanged)
     Q_PROPERTY(QString apiBaseUrl READ apiBaseUrl CONSTANT)
     Q_PROPERTY(QString purchasePageUrl READ purchasePageUrl CONSTANT)
     Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
     Q_PROPERTY(QString lastError READ lastError NOTIFY lastErrorChanged)
     Q_PROPERTY(QString sendCodeMessage READ sendCodeMessage NOTIFY sendCodeMessageChanged)
+    Q_PROPERTY(QString activationMessage READ activationMessage NOTIFY activationMessageChanged)
     Q_PROPERTY(QString currentVersion READ currentVersion CONSTANT)
     Q_PROPERTY(QString latestVersion READ latestVersion NOTIFY updateInfoChanged)
     Q_PROPERTY(bool updateAvailable READ updateAvailable NOTIFY updateInfoChanged)
@@ -76,11 +79,14 @@ public:
     bool phoneLoggedIn() const;
     QString phoneMasked() const;
     QString phoneNickname() const;
+    QString avatarUrl() const;
+    QString avatarLetter() const;
     QString apiBaseUrl() const;
     QString purchasePageUrl() const;
     bool busy() const;
     QString lastError() const;
     QString sendCodeMessage() const;
+    QString activationMessage() const;
     QString currentVersion() const;
     QString latestVersion() const;
     bool updateAvailable() const;
@@ -122,6 +128,7 @@ signals:
     void busyChanged();
     void lastErrorChanged();
     void sendCodeMessageChanged();
+    void activationMessageChanged();
     void updateInfoChanged();
     void pointsChanged();
     void inviteChanged();
@@ -137,10 +144,12 @@ private:
     void setBusy(bool busy);
     void setLastError(const QString& error);
     void setSendCodeMessage(const QString& message);
+    void setActivationMessage(const QString& message);
 
     bool m_busy = false;
     QString m_lastError;
     QString m_sendCodeMessage;
+    QString m_activationMessage;
     QString m_latestVersion;
     QString m_updateDownloadUrl;
     QString m_updateNotes;

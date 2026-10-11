@@ -42,8 +42,12 @@ QString DbScoreAccountModel::statusText() const
             return QStringLiteral("🟢DB-Score年度会员，到期时间：") + expireAtText();
         case IDbScoreAuthorizationService::LicenseState::Expired:
             return QStringLiteral("⚠️会员已过期，请续费解锁增值功能");
+        case IDbScoreAuthorizationService::LicenseState::Trial:
+            return QStringLiteral("✅正在使用免费版 · 3天试用期，剩余：") + trialHoursText();
+        case IDbScoreAuthorizationService::LicenseState::TrialExpired:
+            return QStringLiteral("免费版 · 试用期已结束");
         default:
-            return QStringLiteral("✅已登录，正在使用免费版");
+            return QStringLiteral("正在使用免费版");
         }
     }
 
@@ -129,6 +133,26 @@ QString DbScoreAccountModel::phoneNickname() const
     return authorization()->phoneNickname();
 }
 
+QString DbScoreAccountModel::avatarUrl() const
+{
+    return authorization()->avatarUrl();
+}
+
+QString DbScoreAccountModel::avatarLetter() const
+{
+    QString nickname = authorization()->phoneNickname();
+    if (!nickname.isEmpty()) {
+        return nickname.left(1).toUpper();
+    }
+
+    QString phone = authorization()->phoneMasked();
+    if (!phone.isEmpty()) {
+        return phone.left(1);
+    }
+
+    return QStringLiteral("D");
+}
+
 QString DbScoreAccountModel::apiBaseUrl() const
 {
     return authorization()->apiBaseUrl();
@@ -152,6 +176,11 @@ QString DbScoreAccountModel::lastError() const
 QString DbScoreAccountModel::sendCodeMessage() const
 {
     return m_sendCodeMessage;
+}
+
+QString DbScoreAccountModel::activationMessage() const
+{
+    return m_activationMessage;
 }
 
 QString DbScoreAccountModel::currentVersion() const
@@ -187,6 +216,7 @@ void DbScoreAccountModel::activate(const QString& code)
 
     setBusy(true);
     setLastError(QString());
+    setActivationMessage(QString());
 
     authorization()->activate(code, QString()).onResolve(this, [this](const muse::Ret& ret) {
         setBusy(false);
@@ -195,6 +225,7 @@ void DbScoreAccountModel::activate(const QString& code)
             return;
         }
 
+        setActivationMessage(QStringLiteral("激活成功，会员到期时间：") + expireAtText());
         emit modelChanged();
         emit activated();
     });
@@ -549,4 +580,14 @@ void DbScoreAccountModel::setSendCodeMessage(const QString& message)
 
     m_sendCodeMessage = message;
     emit sendCodeMessageChanged();
+}
+
+void DbScoreAccountModel::setActivationMessage(const QString& message)
+{
+    if (m_activationMessage == message) {
+        return;
+    }
+
+    m_activationMessage = message;
+    emit activationMessageChanged();
 }

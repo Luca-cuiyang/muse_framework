@@ -190,6 +190,15 @@ QString DbScoreAuthorizationService::phoneNickname() const
     return m_phoneUser.value("nickname").toString();
 }
 
+QString DbScoreAuthorizationService::avatarUrl() const
+{
+    QString url = m_phoneUser.value("avatarUrl").toString();
+    if (url.isEmpty()) {
+        url = m_phoneUser.value("avatar").toString();
+    }
+    return url;
+}
+
 QString DbScoreAuthorizationService::apiBaseUrl() const
 {
     return API_BASE_URL;
@@ -793,6 +802,30 @@ void DbScoreAuthorizationService::savePhoneSession()
 
 IDbScoreAuthorizationService::LicenseState DbScoreAuthorizationService::computeState() const
 {
+    bool licenseActive = false;
+    bool licenseExpired = false;
+    QJsonObject license = loadLicense();
+    if (!license.isEmpty()) {
+        QString status = license.value("status").toString();
+        if (status == "revoked") {
+            // 被停用：不视为会员
+        } else if (status == "active") {
+            QString expire = license.value("expireAt").toString();
+            if (expire.isEmpty()) {
+                licenseActive = true;
+            } else {
+                QDateTime expireAt = QDateTime::fromString(expire, Qt::ISODate);
+                if (expireAt.isValid() && expireAt > QDateTime::currentDateTimeUtc()) {
+                    licenseActive = true;
+                } else {
+                    licenseExpired = true;
+                }
+            }
+        }
+    }
+
+    bool phoneMember = false;
+    bool phoneExpired = false;
     if (isPhoneLoggedIn()) {
         QString memberType = m_phoneUser.value("memberType").toString();
         if (memberType != "free") {
@@ -801,41 +834,29 @@ IDbScoreAuthorizationService::LicenseState DbScoreAuthorizationService::computeS
                 expire = m_phoneUser.value("memberExpireAt").toString();
             }
             if (expire.isEmpty()) {
-                return LicenseState::Active;
+                phoneMember = true;
+            } else {
+                QDateTime expireAt = QDateTime::fromString(expire, Qt::ISODate);
+                if (expireAt.isValid() && expireAt > QDateTime::currentDateTimeUtc()) {
+                    phoneMember = true;
+                } else {
+                    phoneExpired = true;
+                }
             }
-
-            QDateTime expireAt = QDateTime::fromString(expire, Qt::ISODate);
-            if (expireAt.isValid() && expireAt > QDateTime::currentDateTimeUtc()) {
-                return LicenseState::Active;
-            }
-            return LicenseState::Expired;
         }
-        return LicenseState::TrialExpired;
     }
 
-    QJsonObject license = loadLicense();
-    if (!license.isEmpty()) {
-        QString status = license.value("status").toString();
-        if (status == "revoked") {
-            return LicenseState::Revoked;
-        }
+    // 激活码会员或付费会员任一有效，即视为正式会员
+    if (licenseActive || phoneMember) {
+        return LicenseState::Active;
+    }
 
-        if (status == "active") {
-            QString expire = license.value("expireAt").toString();
-            if (expire.isEmpty()) {
-                return LicenseState::Active;
-            }
-
-            QDateTime expireAt = QDateTime::fromString(expire, Qt::ISODate);
-            if (expireAt.isValid() && expireAt > QDateTime::currentDateTimeUtc()) {
-                return LicenseState::Active;
-            }
-            return LicenseState::Expired;
-        }
-
+    // 已过期（付费或激活码）
+    if (licenseExpired || phoneExpired) {
         return LicenseState::Expired;
     }
 
+    // 免费用户：仍在 3 天试用期内则按试用中处理
     return isTrialActive() ? LicenseState::Trial : LicenseState::TrialExpired;
 }
 
