@@ -30,6 +30,8 @@ static const std::string dbscore_authorization_module_name("cloud");
 static const Settings::Key TRIAL_START_MS_KEY(dbscore_authorization_module_name, "dbscoreAuthorization/trialStartMs");
 static const Settings::Key LICENSE_CACHE_KEY(dbscore_authorization_module_name, "dbscoreAuthorization/licenseCache");
 static const Settings::Key LAST_SYNC_MS_KEY(dbscore_authorization_module_name, "dbscoreAuthorization/lastSyncMs");
+static const Settings::Key PHONE_TOKEN_KEY(dbscore_authorization_module_name, "dbscoreAuthorization/phoneToken");
+static const Settings::Key PHONE_USER_KEY(dbscore_authorization_module_name, "dbscoreAuthorization/phoneUser");
 
 static const QString API_BASE_URL("https://drumbearai.com");
 static const QString ACTIVATE_URL(API_BASE_URL + "/api/dbscore/activate");
@@ -81,10 +83,15 @@ void DbScoreAuthorizationService::init()
     settings()->setDefaultValue(TRIAL_START_MS_KEY, Val(int64_t(0)));
     settings()->setDefaultValue(LICENSE_CACHE_KEY, Val(std::string()));
     settings()->setDefaultValue(LAST_SYNC_MS_KEY, Val(int64_t(0)));
+    settings()->setDefaultValue(PHONE_TOKEN_KEY, Val(std::string()));
+    settings()->setDefaultValue(PHONE_USER_KEY, Val(std::string()));
 
     setTrialStartNowIfNeeded();
     (void)machineDeviceId();
     applyOfflineGraceWindow();
+    m_phoneToken = settings()->value(PHONE_TOKEN_KEY).toQString();
+    m_phoneUser = loadPhoneUser();
+    m_phoneLoggedIn = !m_phoneToken.isEmpty();
     notifyStateChanged();
 
     scheduleStartupRefresh();
@@ -110,11 +117,22 @@ QString DbScoreAuthorizationService::licenseCode() const
 
 QString DbScoreAuthorizationService::memberType() const
 {
+    if (isPhoneLoggedIn()) {
+        return m_phoneUser.value("memberType").toString();
+    }
     return loadLicense().value("memberType").toString();
 }
 
 QDateTime DbScoreAuthorizationService::expireAt() const
 {
+    if (isPhoneLoggedIn()) {
+        QString value = m_phoneUser.value("expireAt").toString();
+        if (value.isEmpty()) {
+            return QDateTime();
+        }
+        return QDateTime::fromString(value, Qt::ISODate);
+    }
+
     QString value = loadLicense().value("expireAt").toString();
     if (value.isEmpty()) {
         return QDateTime();
@@ -147,6 +165,21 @@ double DbScoreAuthorizationService::trialHoursRemaining() const
 bool DbScoreAuthorizationService::isTrialActive() const
 {
     return trialHoursRemaining() > 0.0;
+}
+
+bool DbScoreAuthorizationService::isPhoneLoggedIn() const
+{
+    return m_phoneLoggedIn && !m_phoneToken.isEmpty();
+}
+
+QString DbScoreAuthorizationService::phoneMasked() const
+{
+    return m_phoneUser.value("phone").toString();
+}
+
+QString DbScoreAuthorizationService::phoneNickname() const
+{
+    return m_phoneUser.value("nickname").toString();
 }
 
 QString DbScoreAuthorizationService::apiBaseUrl() const
@@ -194,6 +227,93 @@ async::Promise<Ret> DbScoreAuthorizationService::activate(const QString& code, c
     });
 }
 
+async::Promise<Ret> DbScoreAuthorizationService::sendCode(const QString& phone)
+{
+    return make_promise<Ret>([this, phone](auto resolve, auto /*reject*/) {
+        QJsonObject body;
+        body["phone"] = phone;
+
+        doRequest(QUrl(API_BASE_URL + "/api/auth/send-code"), body).onResolve(this, [resolve](const RetVal<QJsonObject>& result) {
+            if (!result.ret) {
+                resolve(result.ret);
+                return;
+            }
+            resolve(make_ok());
+        });
+
+        return Promise<Ret>::dummy_result();
+    });
+}
+
+async::Promise<Ret> DbScoreAuthorizationService::loginByPhone(const QString& phone, const QString& code)
+{
+    return make_promise<Ret>([this, phone, code](auto resolve, auto /*reject*/) {
+        QJsonObject body;
+        body["phone"] = phone;
+        body["code"] = code;
+
+        doRequest(QUrl(API_BASE_URL + "/api/auth/login"), body).onResolve(this, [this, resolve](const RetVal<QJsonObject>& result) {
+            if (!result.ret) {
+                resolve(result.ret);
+                return;
+            }
+
+            m_phoneToken = result.val.value("token").toString();
+            if (m_phoneToken.isEmpty()) {
+                resolve(make_ret(Ret::Code::InternalError, std::string("登录返回异常")));
+                return;
+            }
+
+            m_phoneUser = result.val.value("user").toObject();
+            m_phoneLoggedIn = true;
+            savePhoneSession();
+
+            refreshPhoneUser().onResolve(this, [this, resolve](const Ret& ret) {
+                notifyStateChanged();
+                resolve(ret);
+            });
+        });
+
+        return Promise<Ret>::dummy_result();
+    });
+}
+
+async::Promise<Ret> DbScoreAuthorizationService::registerByPhone(const QString& phone, const QString& code, const QString& nickname)
+{
+    return make_promise<Ret>([this, phone, code, nickname](auto resolve, auto /*reject*/) {
+        QJsonObject body;
+        body["phone"] = phone;
+        body["code"] = code;
+        if (!nickname.isEmpty()) {
+            body["nickname"] = nickname;
+        }
+
+        doRequest(QUrl(API_BASE_URL + "/api/auth/register"), body).onResolve(this, [this, resolve](const RetVal<QJsonObject>& result) {
+            if (!result.ret) {
+                resolve(result.ret);
+                return;
+            }
+
+            m_phoneToken = result.val.value("token").toString();
+            if (m_phoneToken.isEmpty()) {
+                resolve(make_ret(Ret::Code::InternalError, std::string("注册返回异常")));
+                return;
+            }
+
+            m_phoneUser = result.val.value("user").toObject();
+            m_phoneLoggedIn = true;
+            savePhoneSession();
+
+            refreshPhoneUser().onResolve(this, [this, resolve](const Ret& ret) {
+                notifyStateChanged();
+                resolve(ret);
+            });
+        });
+
+        return Promise<Ret>::dummy_result();
+    });
+}
+
 async::Promise<Ret> DbScoreAuthorizationService::refresh()
 {
     return make_promise<Ret>([this](auto resolve, auto /*reject*/) {
@@ -201,6 +321,13 @@ async::Promise<Ret> DbScoreAuthorizationService::refresh()
         QUrlQuery query;
         query.addQueryItem("deviceId", machineDeviceId());
         url.setQuery(query);
+
+        if (isPhoneLoggedIn()) {
+            refreshPhoneUser().onResolve(this, [resolve](const Ret& ret) {
+                resolve(ret);
+            });
+            return Promise<Ret>::dummy_result();
+        }
 
         doRequest(url, QJsonObject()).onResolve(this, [this, resolve](const RetVal<QJsonObject>& result) {
             if (!result.ret) {
@@ -233,19 +360,67 @@ void DbScoreAuthorizationService::clearLicense()
     notifyStateChanged();
 }
 
+void DbScoreAuthorizationService::logout()
+{
+    m_phoneToken.clear();
+    m_phoneUser = QJsonObject();
+    m_phoneLoggedIn = false;
+    settings()->setLocalValue(PHONE_TOKEN_KEY, Val(std::string()));
+    settings()->setLocalValue(PHONE_USER_KEY, Val(std::string()));
+    notifyStateChanged();
+}
+
+QString DbScoreAuthorizationService::authTokenHeader() const
+{
+    if (m_phoneToken.isEmpty()) {
+        return QString();
+    }
+    return QStringLiteral("Bearer ") + m_phoneToken;
+}
+
+async::Promise<Ret> DbScoreAuthorizationService::refreshPhoneUser()
+{
+    return make_promise<Ret>([this](auto resolve, auto /*reject*/) {
+        network::RequestHeaders headers;
+        headers.rawHeaders["Authorization"] = authTokenHeader().toUtf8();
+
+        doRequest(QUrl(API_BASE_URL + "/api/user"), QJsonObject(), headers).onResolve(this, [this, resolve](const RetVal<QJsonObject>& result) {
+            if (!result.ret) {
+                resolve(result.ret);
+                return;
+            }
+
+            QJsonObject user = result.val.value("user").toObject();
+            if (!user.isEmpty()) {
+                m_phoneUser = user;
+                savePhoneSession();
+                notifyStateChanged();
+            }
+
+            resolve(make_ok());
+        });
+
+        return Promise<Ret>::dummy_result();
+    });
+}
+
 async::Notification DbScoreAuthorizationService::stateChanged() const
 {
     return m_stateChanged;
 }
 
-async::Promise<RetVal<QJsonObject> > DbScoreAuthorizationService::doRequest(const QUrl& url, const QJsonObject& body)
+async::Promise<RetVal<QJsonObject> > DbScoreAuthorizationService::doRequest(const QUrl& url, const QJsonObject& body,
+                                                                             const network::RequestHeaders& extraHeaders)
 {
-    return make_promise<RetVal<QJsonObject> >([this, url, body](auto resolve, auto /*reject*/) {
+    return make_promise<RetVal<QJsonObject> >([this, url, body, extraHeaders](auto resolve, auto /*reject*/) {
         auto received = std::make_shared<QBuffer>();
         RequestHeaders headers;
         headers.rawHeaders["Content-Type"] = "application/json";
         headers.rawHeaders["Accept"] = "application/json";
         headers.rawHeaders["User-Agent"] = QString("DBScore/" + appVersion()).toUtf8();
+        for (auto it = extraHeaders.rawHeaders.constBegin(); it != extraHeaders.rawHeaders.constEnd(); ++it) {
+            headers.rawHeaders[it.key()] = it.value();
+        }
 
         RetVal<Progress> progress;
         if (body.isEmpty()) {
@@ -278,10 +453,14 @@ async::Promise<RetVal<QJsonObject> > DbScoreAuthorizationService::doRequest(cons
             bool success = obj.value("success").toBool(false);
             QString code = obj.value("code").toString();
             QString message = obj.value("message").toString();
+            QString error = obj.value("error").toString();
 
             if (!success) {
                 if (message.isEmpty()) {
                     message = code;
+                }
+                if (message.isEmpty()) {
+                    message = error;
                 }
                 resolve(RetVal<QJsonObject>::make_ret(Ret::Code::InternalError, message.toStdString()));
                 return;
@@ -435,8 +614,49 @@ void DbScoreAuthorizationService::clearStoredLicense()
     settings()->setLocalValue(LICENSE_CACHE_KEY, Val(std::string()));
 }
 
+QJsonObject DbScoreAuthorizationService::loadPhoneUser() const
+{
+    QString json = settings()->value(PHONE_USER_KEY).toQString();
+    if (json.isEmpty()) {
+        return QJsonObject();
+    }
+
+    QJsonParseError err;
+    QJsonObject obj = jsonObjectFromData(json.toUtf8(), &err);
+    if (err.error != QJsonParseError::NoError) {
+        return QJsonObject();
+    }
+
+    return obj;
+}
+
+void DbScoreAuthorizationService::savePhoneSession()
+{
+    settings()->setLocalValue(PHONE_TOKEN_KEY, Val(m_phoneToken.toStdString()));
+
+    QByteArray json = QJsonDocument(m_phoneUser).toJson(QJsonDocument::Compact);
+    settings()->setLocalValue(PHONE_USER_KEY, Val(std::string(json.constData(), json.size())));
+}
+
 IDbScoreAuthorizationService::LicenseState DbScoreAuthorizationService::computeState() const
 {
+    if (isPhoneLoggedIn()) {
+        QString memberType = m_phoneUser.value("memberType").toString();
+        if (memberType != "free") {
+            QString expire = m_phoneUser.value("expireAt").toString();
+            if (expire.isEmpty()) {
+                return LicenseState::Active;
+            }
+
+            QDateTime expireAt = QDateTime::fromString(expire, Qt::ISODate);
+            if (expireAt.isValid() && expireAt > QDateTime::currentDateTimeUtc()) {
+                return LicenseState::Active;
+            }
+            return LicenseState::Expired;
+        }
+        return LicenseState::TrialExpired;
+    }
+
     QJsonObject license = loadLicense();
     if (!license.isEmpty()) {
         QString status = license.value("status").toString();

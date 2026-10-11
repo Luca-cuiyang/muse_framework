@@ -34,6 +34,17 @@ int DbScoreAccountModel::licenseState() const
 
 QString DbScoreAccountModel::statusText() const
 {
+    if (authorization()->isPhoneLoggedIn()) {
+        switch (authorization()->state()) {
+        case IDbScoreAuthorizationService::LicenseState::Active:
+            return QStringLiteral("🟢DB-Score年度会员，到期时间：") + expireAtText();
+        case IDbScoreAuthorizationService::LicenseState::Expired:
+            return QStringLiteral("⚠️会员已过期，请续费解锁增值功能");
+        default:
+            return QStringLiteral("✅已登录，正在使用免费版");
+        }
+    }
+
     switch (authorization()->state()) {
     case IDbScoreAuthorizationService::LicenseState::Active:
         return QStringLiteral("🟢DB-Score年度会员，到期时间：") + expireAtText();
@@ -101,6 +112,21 @@ QString DbScoreAccountModel::deviceId() const
     return authorization()->deviceId();
 }
 
+bool DbScoreAccountModel::phoneLoggedIn() const
+{
+    return authorization()->isPhoneLoggedIn();
+}
+
+QString DbScoreAccountModel::phoneMasked() const
+{
+    return authorization()->phoneMasked();
+}
+
+QString DbScoreAccountModel::phoneNickname() const
+{
+    return authorization()->phoneNickname();
+}
+
 QString DbScoreAccountModel::apiBaseUrl() const
 {
     return authorization()->apiBaseUrl();
@@ -142,6 +168,43 @@ void DbScoreAccountModel::activate(const QString& code)
     });
 }
 
+void DbScoreAccountModel::sendCode(const QString& phone)
+{
+    if (m_busy) {
+        return;
+    }
+
+    setBusy(true);
+    setLastError(QString());
+
+    authorization()->sendCode(phone).onResolve(this, [this](const muse::Ret& ret) {
+        setBusy(false);
+        if (!ret) {
+            setLastError(QString::fromStdString(ret.text()));
+        }
+    });
+}
+
+void DbScoreAccountModel::loginByPhone(const QString& phone, const QString& code)
+{
+    if (m_busy) {
+        return;
+    }
+
+    setBusy(true);
+    setLastError(QString());
+
+    authorization()->loginByPhone(phone, code).onResolve(this, [this](const muse::Ret& ret) {
+        setBusy(false);
+        if (!ret) {
+            setLastError(QString::fromStdString(ret.text()));
+            return;
+        }
+
+        emit modelChanged();
+    });
+}
+
 void DbScoreAccountModel::refresh()
 {
     if (m_busy) {
@@ -165,6 +228,13 @@ void DbScoreAccountModel::refresh()
 void DbScoreAccountModel::clearLicense()
 {
     authorization()->clearLicense();
+    setLastError(QString());
+    emit modelChanged();
+}
+
+void DbScoreAccountModel::logout()
+{
+    authorization()->logout();
     setLastError(QString());
     emit modelChanged();
 }
