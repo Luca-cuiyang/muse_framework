@@ -183,6 +183,12 @@ void DbScoreAccountModel::sendCode(const QString& phone)
     setLastError(QString());
     setSendCodeMessage(QString());
 
+    if (!authorization()) {
+        setBusy(false);
+        setLastError(QStringLiteral("授权服务未就绪，请重启软件后重试"));
+        return;
+    }
+
     authorization()->sendCode(phone).onResolve(this, [this](const muse::Ret& ret) {
         setBusy(false);
         if (!ret) {

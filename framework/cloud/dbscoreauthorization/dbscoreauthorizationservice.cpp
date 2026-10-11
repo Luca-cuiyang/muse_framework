@@ -12,6 +12,7 @@
 #include <QJsonDocument>
 #include <QJsonParseError>
 #include <QJsonValue>
+#include <QNetworkProxyFactory>
 #include <QSysInfo>
 #include <QUrl>
 #include <QUrlQuery>
@@ -80,6 +81,10 @@ DbScoreAuthorizationService::DbScoreAuthorizationService(QObject* parent)
 
 void DbScoreAuthorizationService::init()
 {
+    // 系统可能残留已关闭的 VPN 代理（如 127.0.0.1:1082），
+    // 会导致授权请求一直挂起超时。这里统一走直连，由系统路由（TUN）转发。
+    QNetworkProxyFactory::setUseSystemConfiguration(false);
+
     settings()->setDefaultValue(TRIAL_START_MS_KEY, Val(int64_t(0)));
     settings()->setDefaultValue(LICENSE_CACHE_KEY, Val(std::string()));
     settings()->setDefaultValue(LAST_SYNC_MS_KEY, Val(int64_t(0)));
@@ -420,7 +425,23 @@ async::Promise<RetVal<QJsonObject> > DbScoreAuthorizationService::doRequest(cons
                                                                              const network::RequestHeaders& extraHeaders)
 {
     return make_promise<RetVal<QJsonObject> >([this, url, body, extraHeaders](auto resolve, auto /*reject*/) {
+        LOGD() << "doRequest url=" << url.toString();
+
         auto received = std::make_shared<QBuffer>();
+        auto timedOut = std::make_shared<bool>(false);
+
+        // 防止请求挂起导致 UI 一直 busy
+        QTimer* timeoutTimer = new QTimer(this);
+        timeoutTimer->setSingleShot(true);
+        QObject::connect(timeoutTimer, &QTimer::timeout, this, [resolve, timedOut]() {
+            if (*timedOut) {
+                return;
+            }
+            *timedOut = true;
+            resolve(RetVal<QJsonObject>::make_ret(Ret::Code::InternalError, std::string("请求超时，请检查网络后重试")));
+        });
+        timeoutTimer->start(15000);
+
         RequestHeaders headers;
         headers.rawHeaders["Content-Type"] = "application/json";
         headers.rawHeaders["Accept"] = "application/json";
@@ -440,11 +461,22 @@ async::Promise<RetVal<QJsonObject> > DbScoreAuthorizationService::doRequest(cons
         }
 
         if (!progress.ret) {
+            timeoutTimer->stop();
+            timeoutTimer->deleteLater();
             resolve(RetVal<QJsonObject>::make_ret(progress.ret));
             return Promise<RetVal<QJsonObject> >::dummy_result();
         }
 
-        progress.val.finished().onReceive(this, [this, received, resolve](const ProgressResult& res) {
+        progress.val.finished().onReceive(this, [this, url, received, resolve, timeoutTimer, timedOut](const ProgressResult& res) {
+            if (*timedOut) {
+                return;
+            }
+            *timedOut = true;
+            timeoutTimer->stop();
+            timeoutTimer->deleteLater();
+
+            LOGD() << "doRequest finished url=" << url.toString() << " ret=" << res.ret.success();
+
             if (!res.ret) {
                 resolve(RetVal<QJsonObject>::make_ret(res.ret));
                 return;
