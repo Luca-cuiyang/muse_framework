@@ -82,7 +82,17 @@ QString DbScoreAccountModel::trialHoursText() const
 {
     double hours = authorization()->trialHoursRemaining();
     if (hours <= 0.0) {
-        return QStringLiteral("0小时");
+        return QStringLiteral("0天");
+    }
+
+    if (hours >= 24.0) {
+        int days = qCeil(hours / 24.0);
+        int remainHours = qRound(hours) % 24;
+        if (remainHours > 0) {
+            return QString::number(days) + QStringLiteral("天")
+                   + QString::number(remainHours) + QStringLiteral("小时");
+        }
+        return QString::number(days) + QStringLiteral("天");
     }
 
     if (hours >= 1.0) {

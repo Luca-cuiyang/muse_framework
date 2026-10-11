@@ -176,6 +176,27 @@ QString DbScoreAuthorizationService::deviceId() const
 
 double DbScoreAuthorizationService::trialHoursRemaining() const
 {
+    // 登录后优先用服务端试用计时
+    if (isPhoneLoggedIn()) {
+        QString endAt = m_phoneUser.value("trialEndAt").toString();
+        if (!endAt.isEmpty()) {
+            QDateTime end = QDateTime::fromString(endAt, Qt::ISODate);
+            if (end.isValid()) {
+                qint64 remainingMs = end.toMSecsSinceEpoch() - QDateTime::currentMSecsSinceEpoch();
+                if (remainingMs <= 0) {
+                    return 0.0;
+                }
+                return double(remainingMs) / (60.0 * 60.0 * 1000.0);
+            }
+        }
+
+        double daysLeft = m_phoneUser.value("trialDaysLeft").toDouble();
+        if (daysLeft > 0) {
+            return daysLeft * 24.0;
+        }
+        return 0.0;
+    }
+
     qint64 start = trialStartMs();
     if (start <= 0) {
         return 0.0;
@@ -192,6 +213,9 @@ double DbScoreAuthorizationService::trialHoursRemaining() const
 
 bool DbScoreAuthorizationService::isTrialActive() const
 {
+    if (isPhoneLoggedIn()) {
+        return m_phoneUser.value("trialActive").toBool();
+    }
     return trialHoursRemaining() > 0.0;
 }
 
