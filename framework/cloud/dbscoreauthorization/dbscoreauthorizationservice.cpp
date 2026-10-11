@@ -280,9 +280,10 @@ async::Promise<Ret> DbScoreAuthorizationService::loginByPhone(const QString& pho
             m_phoneLoggedIn = true;
             savePhoneSession();
 
-            refreshPhoneUser().onResolve(this, [this, resolve](const Ret& ret) {
+            refreshPhoneUser().onResolve(this, [this, resolve](const Ret&) {
                 notifyStateChanged();
-                resolve(ret);
+                // 只要拿到 token 即视为登录成功，用户信息拉取失败不影响登录
+                resolve(make_ok());
             });
         });
 
@@ -316,9 +317,9 @@ async::Promise<Ret> DbScoreAuthorizationService::registerByPhone(const QString& 
             m_phoneLoggedIn = true;
             savePhoneSession();
 
-            refreshPhoneUser().onResolve(this, [this, resolve](const Ret& ret) {
+            refreshPhoneUser().onResolve(this, [this, resolve](const Ret&) {
                 notifyStateChanged();
-                resolve(ret);
+                resolve(make_ok());
             });
         });
 
