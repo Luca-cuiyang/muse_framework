@@ -122,6 +122,11 @@ QString DbScoreAuthorizationService::licenseCode() const
 
 QString DbScoreAuthorizationService::memberType() const
 {
+    // 激活码会员优先于手机号会员状态
+    if (isLicenseActive()) {
+        return loadLicense().value("memberType").toString();
+    }
+
     if (isPhoneLoggedIn()) {
         return m_phoneUser.value("memberType").toString();
     }
@@ -130,6 +135,14 @@ QString DbScoreAuthorizationService::memberType() const
 
 QDateTime DbScoreAuthorizationService::expireAt() const
 {
+    // 激活码会员优先返回激活码的到期时间
+    if (isLicenseActive()) {
+        QString value = loadLicense().value("expireAt").toString();
+        if (!value.isEmpty()) {
+            return QDateTime::fromString(value, Qt::ISODate);
+        }
+    }
+
     if (isPhoneLoggedIn()) {
         QString value = m_phoneUser.value("expireAt").toString();
         if (value.isEmpty()) {
@@ -800,6 +813,23 @@ void DbScoreAuthorizationService::savePhoneSession()
     settings()->setLocalValue(PHONE_USER_KEY, Val(std::string(json.constData(), json.size())));
 }
 
+bool DbScoreAuthorizationService::isLicenseActive() const
+{
+    QJsonObject license = loadLicense();
+    if (license.isEmpty() || license.value("status").toString() != "active") {
+        return false;
+    }
+
+    // 本产品为年度会员（365 天），不存在永久授权；没有到期时间不视为有效会员
+    QString expire = license.value("expireAt").toString();
+    if (expire.isEmpty()) {
+        return false;
+    }
+
+    QDateTime expireAt = QDateTime::fromString(expire, Qt::ISODate);
+    return expireAt.isValid() && expireAt > QDateTime::currentDateTimeUtc();
+}
+
 IDbScoreAuthorizationService::LicenseState DbScoreAuthorizationService::computeState() const
 {
     bool licenseActive = false;
@@ -812,7 +842,8 @@ IDbScoreAuthorizationService::LicenseState DbScoreAuthorizationService::computeS
         } else if (status == "active") {
             QString expire = license.value("expireAt").toString();
             if (expire.isEmpty()) {
-                licenseActive = true;
+                // 年度会员不存在永久授权，无到期时间视为已过期
+                licenseExpired = true;
             } else {
                 QDateTime expireAt = QDateTime::fromString(expire, Qt::ISODate);
                 if (expireAt.isValid() && expireAt > QDateTime::currentDateTimeUtc()) {

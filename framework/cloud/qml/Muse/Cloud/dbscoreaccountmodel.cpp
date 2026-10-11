@@ -83,7 +83,7 @@ QString DbScoreAccountModel::expireAtText() const
 {
     QDateTime expireAt = authorization()->expireAt();
     if (!expireAt.isValid()) {
-        return QStringLiteral("永久");
+        return QStringLiteral("—");
     }
 
     return expireAt.toLocalTime().toString(QStringLiteral("yyyy-MM-dd"));

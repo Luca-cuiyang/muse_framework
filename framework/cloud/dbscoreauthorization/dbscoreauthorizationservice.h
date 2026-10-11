@@ -93,6 +93,7 @@ private:
     QJsonObject loadPhoneUser() const;
     void savePhoneSession();
     async::Promise<muse::Ret> refreshPhoneUser();
+    bool isLicenseActive() const;
 
     LicenseState computeState() const;
     void notifyStateChanged();
