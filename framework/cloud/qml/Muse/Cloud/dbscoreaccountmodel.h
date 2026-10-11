@@ -1,0 +1,79 @@
+/*
+ * SPDX-License-Identifier: GPL-3.0-only
+ * MuseScore-CLA-applies
+ *
+ * DB Score - 账户中心模型（激活码授权）
+ */
+
+#ifndef MUSE_CLOUD_DBSCOREACCOUNTMODEL_H
+#define MUSE_CLOUD_DBSCOREACCOUNTMODEL_H
+
+#include <QObject>
+#include <QString>
+#include <qqmlintegration.h>
+
+#include "modularity/ioc.h"
+#include "async/asyncable.h"
+
+#include "cloud/dbscoreauthorization/idbscoreauthorizationservice.h"
+
+namespace muse::cloud {
+class DbScoreAccountModel : public QObject, public async::Asyncable
+{
+    Q_OBJECT
+
+    Q_PROPERTY(bool hasProAccess READ hasProAccess NOTIFY modelChanged)
+    Q_PROPERTY(int licenseState READ licenseState NOTIFY modelChanged)
+    Q_PROPERTY(QString statusText READ statusText NOTIFY modelChanged)
+    Q_PROPERTY(QString licenseCode READ licenseCode NOTIFY modelChanged)
+    Q_PROPERTY(QString memberType READ memberType NOTIFY modelChanged)
+    Q_PROPERTY(QString expireAtText READ expireAtText NOTIFY modelChanged)
+    Q_PROPERTY(QString trialHoursText READ trialHoursText NOTIFY modelChanged)
+    Q_PROPERTY(QString deviceId READ deviceId NOTIFY modelChanged)
+    Q_PROPERTY(QString apiBaseUrl READ apiBaseUrl CONSTANT)
+    Q_PROPERTY(QString purchasePageUrl READ purchasePageUrl CONSTANT)
+    Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
+    Q_PROPERTY(QString lastError READ lastError NOTIFY lastErrorChanged)
+
+    QML_ELEMENT
+
+    muse::GlobalInject<IDbScoreAuthorizationService> authorization;
+
+public:
+    explicit DbScoreAccountModel(QObject* parent = nullptr);
+
+    bool hasProAccess() const;
+    int licenseState() const;
+    QString statusText() const;
+    QString licenseCode() const;
+    QString memberType() const;
+    QString expireAtText() const;
+    QString trialHoursText() const;
+    QString deviceId() const;
+    QString apiBaseUrl() const;
+    QString purchasePageUrl() const;
+    bool busy() const;
+    QString lastError() const;
+
+    Q_INVOKABLE void activate(const QString& code);
+    Q_INVOKABLE void refresh();
+    Q_INVOKABLE void clearLicense();
+    Q_INVOKABLE void openPurchasePage();
+
+signals:
+    void modelChanged();
+    void busyChanged();
+    void lastErrorChanged();
+    void activated();
+    void refreshFinished();
+
+private:
+    void setBusy(bool busy);
+    void setLastError(const QString& error);
+
+    bool m_busy = false;
+    QString m_lastError;
+};
+}
+
+#endif // MUSE_CLOUD_DBSCOREACCOUNTMODEL_H

@@ -1,0 +1,185 @@
+/*
+ * SPDX-License-Identifier: GPL-3.0-only
+ * MuseScore-CLA-applies
+ *
+ * DB Score - 账户中心模型（激活码授权）
+ */
+
+#include "dbscoreaccountmodel.h"
+
+#include <QDesktopServices>
+#include <QUrl>
+
+#include "log.h"
+
+using namespace muse::cloud;
+
+DbScoreAccountModel::DbScoreAccountModel(QObject* parent)
+    : QObject(parent)
+{
+    authorization()->stateChanged().onNotify(this, [this]() {
+        emit modelChanged();
+    });
+}
+
+bool DbScoreAccountModel::hasProAccess() const
+{
+    return authorization()->hasProAccess();
+}
+
+int DbScoreAccountModel::licenseState() const
+{
+    return static_cast<int>(authorization()->state());
+}
+
+QString DbScoreAccountModel::statusText() const
+{
+    switch (authorization()->state()) {
+    case IDbScoreAuthorizationService::LicenseState::Active:
+        return QStringLiteral("🟢DB-Score年度会员，到期时间：") + expireAtText();
+    case IDbScoreAuthorizationService::LicenseState::Trial:
+        return QStringLiteral("✅正在3天免费试用期，剩余：") + trialHoursText();
+    case IDbScoreAuthorizationService::LicenseState::TrialExpired:
+        return QStringLiteral("⚠️免费试用已结束，请激活会员解锁增值功能");
+    case IDbScoreAuthorizationService::LicenseState::Expired:
+        return QStringLiteral("⚠️会员已过期，请续费解锁增值功能");
+    case IDbScoreAuthorizationService::LicenseState::Revoked:
+        return QStringLiteral("🔴会员已停用");
+    default:
+        break;
+    }
+
+    return QString();
+}
+
+QString DbScoreAccountModel::licenseCode() const
+{
+    return authorization()->licenseCode();
+}
+
+QString DbScoreAccountModel::memberType() const
+{
+    return authorization()->memberType();
+}
+
+QString DbScoreAccountModel::expireAtText() const
+{
+    QDateTime expireAt = authorization()->expireAt();
+    if (!expireAt.isValid()) {
+        return QStringLiteral("永久");
+    }
+
+    return expireAt.toLocalTime().toString(QStringLiteral("yyyy-MM-dd"));
+}
+
+QString DbScoreAccountModel::trialHoursText() const
+{
+    double hours = authorization()->trialHoursRemaining();
+    if (hours <= 0.0) {
+        return QStringLiteral("0小时");
+    }
+
+    if (hours >= 1.0) {
+        return QString::number(qRound(hours)) + QStringLiteral("小时");
+    }
+
+    return QString::number(qMax(1, qRound(hours * 60.0))) + QStringLiteral("分钟");
+}
+
+QString DbScoreAccountModel::deviceId() const
+{
+    return authorization()->deviceId();
+}
+
+QString DbScoreAccountModel::apiBaseUrl() const
+{
+    return authorization()->apiBaseUrl();
+}
+
+QString DbScoreAccountModel::purchasePageUrl() const
+{
+    return authorization()->purchasePageUrl();
+}
+
+bool DbScoreAccountModel::busy() const
+{
+    return m_busy;
+}
+
+QString DbScoreAccountModel::lastError() const
+{
+    return m_lastError;
+}
+
+void DbScoreAccountModel::activate(const QString& code)
+{
+    if (m_busy) {
+        return;
+    }
+
+    setBusy(true);
+    setLastError(QString());
+
+    authorization()->activate(code, QString()).onResolve(this, [this](const muse::Ret& ret) {
+        setBusy(false);
+        if (!ret) {
+            setLastError(QString::fromStdString(ret.text()));
+            return;
+        }
+
+        emit modelChanged();
+        emit activated();
+    });
+}
+
+void DbScoreAccountModel::refresh()
+{
+    if (m_busy) {
+        return;
+    }
+
+    setBusy(true);
+    setLastError(QString());
+
+    authorization()->refresh().onResolve(this, [this](const muse::Ret& ret) {
+        setBusy(false);
+        if (!ret) {
+            setLastError(QString::fromStdString(ret.text()));
+        }
+
+        emit modelChanged();
+        emit refreshFinished();
+    });
+}
+
+void DbScoreAccountModel::clearLicense()
+{
+    authorization()->clearLicense();
+    setLastError(QString());
+    emit modelChanged();
+}
+
+void DbScoreAccountModel::openPurchasePage()
+{
+    QDesktopServices::openUrl(QUrl(authorization()->purchasePageUrl()));
+}
+
+void DbScoreAccountModel::setBusy(bool busy)
+{
+    if (m_busy == busy) {
+        return;
+    }
+
+    m_busy = busy;
+    emit busyChanged();
+}
+
+void DbScoreAccountModel::setLastError(const QString& error)
+{
+    if (m_lastError == error) {
+        return;
+    }
+
+    m_lastError = error;
+    emit lastErrorChanged();
+}

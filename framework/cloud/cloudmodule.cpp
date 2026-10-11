@@ -29,6 +29,7 @@
 #include "dbscorecloud/dbscorecloudservice.h"
 #endif
 #include "dbscoreaudio/dbscoreaudioservice.h"
+#include "dbscoreauthorization/dbscoreauthorizationservice.h"
 #include "internal/cloudconfiguration.h"
 
 using namespace muse;
@@ -44,6 +45,8 @@ void CloudModule::registerExports()
 {
     m_cloudConfiguration = std::make_shared<CloudConfiguration>(globalCtx());
     globalIoc()->registerExport<ICloudConfiguration>(moduleName(), m_cloudConfiguration);
+    m_dbScoreAuthorizationService = std::make_shared<DbScoreAuthorizationService>();
+    globalIoc()->registerExport<IDbScoreAuthorizationService>(moduleName(), m_dbScoreAuthorizationService);
 #ifdef MUSE_MODULE_CLOUD_DBSCORECLOUD
     m_dbScoreCloudService = std::make_shared<DBScoreCloudService>(globalCtx());
     globalIoc()->registerExport<IDBScoreCloudService>(moduleName(), m_dbScoreCloudService);
@@ -63,6 +66,7 @@ void CloudModule::resolveImports()
 void CloudModule::onInit(const IApplication::RunMode&)
 {
     m_cloudConfiguration->init();
+    m_dbScoreAuthorizationService->init();
 #ifdef MUSE_MODULE_CLOUD_DBSCORECLOUD
     m_dbScoreCloudService->init();
 #endif

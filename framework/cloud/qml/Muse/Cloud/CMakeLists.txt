@@ -26,6 +26,8 @@ qt_add_qml_module(muse_cloud_qml
     SOURCES
         cloudsmodel.cpp
         cloudsmodel.h
+        dbscoreaccountmodel.cpp
+        dbscoreaccountmodel.h
         enums.cpp
         enums.h
         dbscorecloudauthorizationmodel.cpp

@@ -40,6 +40,9 @@ target_sources(muse_cloud PRIVATE
     dbscoreaudio/idbscoreaudioservice.h
     dbscoreaudio/dbscoreaudioservice.h
     dbscoreaudio/dbscoreaudioservice.cpp
+    dbscoreauthorization/idbscoreauthorizationservice.h
+    dbscoreauthorization/dbscoreauthorizationservice.h
+    dbscoreauthorization/dbscoreauthorizationservice.cpp
 )
 
 if (MUSE_MODULE_CLOUD_DBSCORECLOUD)
