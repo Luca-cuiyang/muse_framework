@@ -10,6 +10,7 @@
 
 #include <QJsonObject>
 #include <QObject>
+#include <QTimer>
 
 #include "async/asyncable.h"
 #include "modularity/ioc.h"
@@ -65,6 +66,11 @@ private:
     void setTrialStartNowIfNeeded();
     qint64 trialStartMs() const;
 
+    void scheduleStartupRefresh();
+    void scheduleHeartbeat();
+    void scheduleTrialWatch();
+    void applyOfflineGraceWindow();
+
     QJsonObject loadLicense() const;
     void saveLicense(const QJsonObject& license) const;
     void clearStoredLicense();
@@ -79,6 +85,9 @@ private:
     mutable QString m_deviceId;
     mutable bool m_deviceIdLoaded = false;
     mutable async::Notification m_stateChanged;
+    QTimer m_heartbeatTimer;
+    QTimer m_trialWatchTimer;
+    bool m_trialWasActive = false;
 };
 }
 

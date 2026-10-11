@@ -29,6 +29,7 @@ class DbScoreAccountModel : public QObject, public async::Asyncable
     Q_PROPERTY(QString memberType READ memberType NOTIFY modelChanged)
     Q_PROPERTY(QString expireAtText READ expireAtText NOTIFY modelChanged)
     Q_PROPERTY(QString trialHoursText READ trialHoursText NOTIFY modelChanged)
+    Q_PROPERTY(int daysUntilExpiry READ daysUntilExpiry NOTIFY modelChanged)
     Q_PROPERTY(QString deviceId READ deviceId NOTIFY modelChanged)
     Q_PROPERTY(QString apiBaseUrl READ apiBaseUrl CONSTANT)
     Q_PROPERTY(QString purchasePageUrl READ purchasePageUrl CONSTANT)
@@ -49,6 +50,7 @@ public:
     QString memberType() const;
     QString expireAtText() const;
     QString trialHoursText() const;
+    int daysUntilExpiry() const;
     QString deviceId() const;
     QString apiBaseUrl() const;
     QString purchasePageUrl() const;

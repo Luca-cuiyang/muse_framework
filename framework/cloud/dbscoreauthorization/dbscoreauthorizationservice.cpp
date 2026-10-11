@@ -29,6 +29,7 @@ static const std::string dbscore_authorization_module_name("cloud");
 
 static const Settings::Key TRIAL_START_MS_KEY(dbscore_authorization_module_name, "dbscoreAuthorization/trialStartMs");
 static const Settings::Key LICENSE_CACHE_KEY(dbscore_authorization_module_name, "dbscoreAuthorization/licenseCache");
+static const Settings::Key LAST_SYNC_MS_KEY(dbscore_authorization_module_name, "dbscoreAuthorization/lastSyncMs");
 
 static const QString API_BASE_URL("https://drumbearai.com");
 static const QString ACTIVATE_URL(API_BASE_URL + "/api/dbscore/activate");
@@ -68,16 +69,27 @@ static QJsonObject jsonObjectFromData(const QByteArray& data, QJsonParseError* e
 DbScoreAuthorizationService::DbScoreAuthorizationService(QObject* parent)
     : QObject(parent)
 {
+    m_heartbeatTimer.setInterval(24 * 60 * 60 * 1000); // 每 24 小时心跳一次
+    m_heartbeatTimer.setSingleShot(false);
+
+    m_trialWatchTimer.setInterval(5 * 60 * 1000); // 每 5 分钟检查一次试用是否到期
+    m_trialWatchTimer.setSingleShot(false);
 }
 
 void DbScoreAuthorizationService::init()
 {
     settings()->setDefaultValue(TRIAL_START_MS_KEY, Val(int64_t(0)));
     settings()->setDefaultValue(LICENSE_CACHE_KEY, Val(std::string()));
+    settings()->setDefaultValue(LAST_SYNC_MS_KEY, Val(int64_t(0)));
 
     setTrialStartNowIfNeeded();
     (void)machineDeviceId();
+    applyOfflineGraceWindow();
     notifyStateChanged();
+
+    scheduleStartupRefresh();
+    scheduleHeartbeat();
+    scheduleTrialWatch();
 }
 
 IDbScoreAuthorizationService::LicenseState DbScoreAuthorizationService::state() const
@@ -174,6 +186,7 @@ async::Promise<Ret> DbScoreAuthorizationService::activate(const QString& code, c
                 notifyStateChanged();
             }
 
+            settings()->setLocalValue(LAST_SYNC_MS_KEY, Val(QDateTime::currentMSecsSinceEpoch()));
             resolve(make_ok());
         });
 
@@ -195,6 +208,18 @@ async::Promise<Ret> DbScoreAuthorizationService::refresh()
                 return;
             }
 
+            if (result.val.contains("license")) {
+                QJsonObject license = result.val.value("license").toObject();
+                if (license.isEmpty()) {
+                    // 服务端明确表示无授权（可能被解绑/停用/删除）
+                    clearStoredLicense();
+                } else {
+                    saveLicense(license);
+                }
+                notifyStateChanged();
+            }
+
+            settings()->setLocalValue(LAST_SYNC_MS_KEY, Val(QDateTime::currentMSecsSinceEpoch()));
             resolve(make_ok());
         });
 
@@ -324,6 +349,57 @@ void DbScoreAuthorizationService::setTrialStartNowIfNeeded()
     qint64 start = trialStartMs();
     if (start <= 0) {
         settings()->setLocalValue(TRIAL_START_MS_KEY, Val(QDateTime::currentMSecsSinceEpoch()));
+    }
+}
+
+void DbScoreAuthorizationService::scheduleStartupRefresh()
+{
+    // 等主事件循环启动后再发起首次授权同步
+    QTimer::singleShot(3000, this, [this]() {
+        (void)refresh();
+    });
+}
+
+void DbScoreAuthorizationService::scheduleHeartbeat()
+{
+    QObject::connect(&m_heartbeatTimer, &QTimer::timeout, this, [this]() {
+        (void)refresh();
+    });
+    m_heartbeatTimer.start();
+}
+
+void DbScoreAuthorizationService::scheduleTrialWatch()
+{
+    m_trialWasActive = isTrialActive();
+
+    QObject::connect(&m_trialWatchTimer, &QTimer::timeout, this, [this]() {
+        bool active = isTrialActive();
+        if (m_trialWasActive && !active) {
+            // 试用从有效变为过期：立即锁定并通知界面
+            notifyStateChanged();
+        }
+        m_trialWasActive = active;
+    });
+    m_trialWatchTimer.start();
+}
+
+void DbScoreAuthorizationService::applyOfflineGraceWindow()
+{
+    constexpr qint64 GRACE_MS = 7 * 24 * 60 * 60 * 1000LL;
+
+    qint64 lastSync = settings()->value(LAST_SYNC_MS_KEY).toInt64();
+    if (lastSync <= 0) {
+        return;
+    }
+
+    QJsonObject license = loadLicense();
+    if (license.isEmpty()) {
+        return;
+    }
+
+    if (QDateTime::currentMSecsSinceEpoch() - lastSync > GRACE_MS) {
+        // 超过离线宽限期仍未联网校验，暂停会员权益
+        clearStoredLicense();
     }
 }
 

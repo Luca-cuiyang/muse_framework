@@ -86,6 +86,16 @@ QString DbScoreAccountModel::trialHoursText() const
     return QString::number(qMax(1, qRound(hours * 60.0))) + QStringLiteral("分钟");
 }
 
+int DbScoreAccountModel::daysUntilExpiry() const
+{
+    QDateTime expireAt = authorization()->expireAt();
+    if (!expireAt.isValid()) {
+        return -1;
+    }
+
+    return qMax(0, static_cast<int>(QDateTime::currentDateTimeUtc().daysTo(expireAt)));
+}
+
 QString DbScoreAccountModel::deviceId() const
 {
     return authorization()->deviceId();
