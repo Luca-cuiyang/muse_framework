@@ -38,7 +38,7 @@ static const QString API_BASE_URL("https://drumbearai.com");
 static const QString ACTIVATE_URL(API_BASE_URL + "/api/dbscore/activate");
 static const QString LICENSE_URL(API_BASE_URL + "/api/dbscore/license");
 static const QString HEARTBEAT_URL(API_BASE_URL + "/api/dbscore/heartbeat");
-static const QString PURCHASE_PAGE_URL(API_BASE_URL + "/membership");
+static const QString PURCHASE_PAGE_URL(API_BASE_URL + "/membership?plan=yearly");
 
 static constexpr qint64 TRIAL_DURATION_MS = 3 * 24 * 60 * 60 * 1000LL; // 3 天
 
@@ -418,6 +418,35 @@ async::Promise<RetVal<QVariantMap> > DbScoreAuthorizationService::checkForUpdate
     });
 }
 
+async::Promise<RetVal<QVariantMap> > DbScoreAuthorizationService::apiGet(const QString& path)
+{
+    return make_promise<RetVal<QVariantMap> >([this, path](auto resolve, auto /*reject*/) {
+        doRequest(QUrl(API_BASE_URL + path), QJsonObject(), authHeaders()).onResolve(this, [resolve](const RetVal<QJsonObject>& result) {
+            if (!result.ret) {
+                resolve(RetVal<QVariantMap>::make_ret(result.ret));
+                return;
+            }
+            resolve(RetVal<QVariantMap>::make_ok(result.val.toVariantMap()));
+        });
+        return Promise<RetVal<QVariantMap> >::dummy_result();
+    });
+}
+
+async::Promise<RetVal<QVariantMap> > DbScoreAuthorizationService::apiPost(const QString& path, const QVariantMap& body)
+{
+    return make_promise<RetVal<QVariantMap> >([this, path, body](auto resolve, auto /*reject*/) {
+        QJsonObject json = QJsonObject::fromVariantMap(body);
+        doRequest(QUrl(API_BASE_URL + path), json, authHeaders()).onResolve(this, [resolve](const RetVal<QJsonObject>& result) {
+            if (!result.ret) {
+                resolve(RetVal<QVariantMap>::make_ret(result.ret));
+                return;
+            }
+            resolve(RetVal<QVariantMap>::make_ok(result.val.toVariantMap()));
+        });
+        return Promise<RetVal<QVariantMap> >::dummy_result();
+    });
+}
+
 void DbScoreAuthorizationService::logout()
 {
     m_phoneToken.clear();
@@ -434,6 +463,15 @@ QString DbScoreAuthorizationService::authTokenHeader() const
         return QString();
     }
     return QStringLiteral("Bearer ") + m_phoneToken;
+}
+
+network::RequestHeaders DbScoreAuthorizationService::authHeaders() const
+{
+    network::RequestHeaders headers;
+    if (!m_phoneToken.isEmpty()) {
+        headers.rawHeaders["Authorization"] = authTokenHeader().toUtf8();
+    }
+    return headers;
 }
 
 async::Promise<Ret> DbScoreAuthorizationService::refreshPhoneUser()

@@ -61,6 +61,8 @@ public:
     virtual async::Promise<muse::Ret> registerByPhone(const QString& phone, const QString& code, const QString& nickname) = 0;
     virtual async::Promise<muse::Ret> refresh() = 0;
     virtual async::Promise<muse::RetVal<QVariantMap> > checkForUpdate() = 0;
+    virtual async::Promise<muse::RetVal<QVariantMap> > apiGet(const QString& path) = 0;
+    virtual async::Promise<muse::RetVal<QVariantMap> > apiPost(const QString& path, const QVariantMap& body) = 0;
     virtual void clearLicense() = 0;
     virtual void logout() = 0;
 

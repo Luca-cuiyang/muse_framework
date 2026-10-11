@@ -60,6 +60,8 @@ public:
     async::Promise<muse::Ret> registerByPhone(const QString& phone, const QString& code, const QString& nickname) override;
     async::Promise<muse::Ret> refresh() override;
     async::Promise<muse::RetVal<QVariantMap> > checkForUpdate() override;
+    async::Promise<muse::RetVal<QVariantMap> > apiGet(const QString& path) override;
+    async::Promise<muse::RetVal<QVariantMap> > apiPost(const QString& path, const QVariantMap& body) override;
     void clearLicense() override;
     void logout() override;
 
@@ -74,6 +76,7 @@ private:
     QString appVersion() const;
     QString updatePlatformKey() const;
     QString authTokenHeader() const;
+    network::RequestHeaders authHeaders() const;
 
     void setTrialStartNowIfNeeded();
     qint64 trialStartMs() const;

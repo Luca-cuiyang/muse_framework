@@ -10,6 +10,7 @@
 
 #include <QObject>
 #include <QString>
+#include <QVariantList>
 #include <qqmlintegration.h>
 
 #include "modularity/ioc.h"
@@ -44,6 +45,14 @@ class DbScoreAccountModel : public QObject, public async::Asyncable
     Q_PROPERTY(bool updateAvailable READ updateAvailable NOTIFY updateInfoChanged)
     Q_PROPERTY(QString updateDownloadUrl READ updateDownloadUrl NOTIFY updateInfoChanged)
     Q_PROPERTY(QString updateNotes READ updateNotes NOTIFY updateInfoChanged)
+    Q_PROPERTY(int pointsBalance READ pointsBalance NOTIFY pointsChanged)
+    Q_PROPERTY(bool todayCheckedIn READ todayCheckedIn NOTIFY pointsChanged)
+    Q_PROPERTY(QString inviteCode READ inviteCode NOTIFY inviteChanged)
+    Q_PROPERTY(QString inviteUrl READ inviteUrl NOTIFY inviteChanged)
+    Q_PROPERTY(int commissionBalanceCents READ commissionBalanceCents NOTIFY inviteChanged)
+    Q_PROPERTY(int totalEarnedCents READ totalEarnedCents NOTIFY inviteChanged)
+    Q_PROPERTY(int inviteeCount READ inviteeCount NOTIFY inviteChanged)
+    Q_PROPERTY(QVariantList ordersList READ ordersList NOTIFY ordersChanged)
 
     QML_ELEMENT
 
@@ -74,6 +83,14 @@ public:
     bool updateAvailable() const;
     QString updateDownloadUrl() const;
     QString updateNotes() const;
+    int pointsBalance() const;
+    bool todayCheckedIn() const;
+    QString inviteCode() const;
+    QString inviteUrl() const;
+    int commissionBalanceCents() const;
+    int totalEarnedCents() const;
+    int inviteeCount() const;
+    QVariantList ordersList() const;
 
     Q_INVOKABLE void activate(const QString& code);
     Q_INVOKABLE void sendCode(const QString& phone);
@@ -85,6 +102,10 @@ public:
     Q_INVOKABLE void copyText(const QString& text);
     Q_INVOKABLE void checkForUpdate();
     Q_INVOKABLE void openUpdateDownload();
+    Q_INVOKABLE void loadPoints();
+    Q_INVOKABLE void checkIn();
+    Q_INVOKABLE void loadInvite();
+    Q_INVOKABLE void loadOrders();
 
 signals:
     void modelChanged();
@@ -92,6 +113,9 @@ signals:
     void lastErrorChanged();
     void sendCodeMessageChanged();
     void updateInfoChanged();
+    void pointsChanged();
+    void inviteChanged();
+    void ordersChanged();
     void activated();
     void refreshFinished();
 
@@ -107,6 +131,14 @@ private:
     QString m_updateDownloadUrl;
     QString m_updateNotes;
     bool m_updateAvailable = false;
+    int m_pointsBalance = 0;
+    bool m_todayCheckedIn = false;
+    QString m_inviteCode;
+    QString m_inviteUrl;
+    int m_commissionBalanceCents = 0;
+    int m_totalEarnedCents = 0;
+    int m_inviteeCount = 0;
+    QVariantList m_ordersList;
 };
 }
 

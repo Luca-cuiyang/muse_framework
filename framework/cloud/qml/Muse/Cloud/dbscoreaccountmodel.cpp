@@ -325,6 +325,122 @@ void DbScoreAccountModel::openUpdateDownload()
     }
 }
 
+int DbScoreAccountModel::pointsBalance() const
+{
+    return m_pointsBalance;
+}
+
+bool DbScoreAccountModel::todayCheckedIn() const
+{
+    return m_todayCheckedIn;
+}
+
+QString DbScoreAccountModel::inviteCode() const
+{
+    return m_inviteCode;
+}
+
+QString DbScoreAccountModel::inviteUrl() const
+{
+    return m_inviteUrl;
+}
+
+int DbScoreAccountModel::commissionBalanceCents() const
+{
+    return m_commissionBalanceCents;
+}
+
+int DbScoreAccountModel::totalEarnedCents() const
+{
+    return m_totalEarnedCents;
+}
+
+int DbScoreAccountModel::inviteeCount() const
+{
+    return m_inviteeCount;
+}
+
+QVariantList DbScoreAccountModel::ordersList() const
+{
+    return m_ordersList;
+}
+
+static QVariantMap dataMap(const QVariantMap& obj)
+{
+    QVariantMap data = obj.value("data").toMap();
+    if (data.isEmpty()) {
+        data = obj;
+    }
+    return data;
+}
+
+void DbScoreAccountModel::loadPoints()
+{
+    authorization()->apiGet("/api/points").onResolve(this, [this](const muse::RetVal<QVariantMap>& result) {
+        if (!result.ret) {
+            return;
+        }
+
+        QVariantMap data = dataMap(result.val);
+        m_pointsBalance = data.value("balance").toInt();
+        m_todayCheckedIn = data.value("todayCheckedIn").toBool();
+        emit pointsChanged();
+    });
+}
+
+void DbScoreAccountModel::checkIn()
+{
+    if (m_busy) {
+        return;
+    }
+
+    setBusy(true);
+    setLastError(QString());
+
+    authorization()->apiPost("/api/points/checkin", QVariantMap()).onResolve(this, [this](const muse::RetVal<QVariantMap>& result) {
+        setBusy(false);
+        if (!result.ret) {
+            setLastError(QString::fromStdString(result.ret.text()));
+            return;
+        }
+
+        QVariantMap data = dataMap(result.val);
+        m_pointsBalance = data.value("balance").toInt();
+        m_todayCheckedIn = true;
+        emit pointsChanged();
+    });
+}
+
+void DbScoreAccountModel::loadInvite()
+{
+    authorization()->apiGet("/api/invite").onResolve(this, [this](const muse::RetVal<QVariantMap>& result) {
+        if (!result.ret) {
+            return;
+        }
+
+        QVariantMap data = dataMap(result.val);
+        m_inviteCode = data.value("inviteCode").toString();
+        m_inviteUrl = data.value("inviteUrl").toString();
+        m_commissionBalanceCents = data.value("commissionBalanceCents").toInt();
+        m_totalEarnedCents = data.value("totalEarnedCents").toInt();
+        m_inviteeCount = data.value("inviteeCount").toInt();
+        emit inviteChanged();
+    });
+}
+
+void DbScoreAccountModel::loadOrders()
+{
+    authorization()->apiGet("/api/orders?page=1&pageSize=50").onResolve(this, [this](const muse::RetVal<QVariantMap>& result) {
+        if (!result.ret) {
+            return;
+        }
+
+        QVariantMap data = dataMap(result.val);
+        m_ordersList = data.value("list").toList();
+        emit ordersChanged();
+    });
+}
+
 void DbScoreAccountModel::setBusy(bool busy)
 {
     if (m_busy == busy) {
