@@ -8,6 +8,8 @@
 #include "dbscoreaccountmodel.h"
 
 #include <QDesktopServices>
+#include <QGuiApplication>
+#include <QClipboard>
 #include <QUrl>
 
 #include "log.h"
@@ -256,6 +258,15 @@ void DbScoreAccountModel::logout()
 void DbScoreAccountModel::openPurchasePage()
 {
     QDesktopServices::openUrl(QUrl(authorization()->purchasePageUrl()));
+}
+
+void DbScoreAccountModel::copyText(const QString& text)
+{
+    if (text.isEmpty()) {
+        return;
+    }
+
+    QGuiApplication::clipboard()->setText(text);
 }
 
 void DbScoreAccountModel::setBusy(bool busy)

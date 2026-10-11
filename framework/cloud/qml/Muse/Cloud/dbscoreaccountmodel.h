@@ -72,6 +72,7 @@ public:
     Q_INVOKABLE void clearLicense();
     Q_INVOKABLE void logout();
     Q_INVOKABLE void openPurchasePage();
+    Q_INVOKABLE void copyText(const QString& text);
 
 signals:
     void modelChanged();
