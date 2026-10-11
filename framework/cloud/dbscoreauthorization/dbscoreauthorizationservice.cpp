@@ -233,14 +233,18 @@ async::Promise<Ret> DbScoreAuthorizationService::activate(const QString& code, c
 async::Promise<Ret> DbScoreAuthorizationService::sendCode(const QString& phone)
 {
     return make_promise<Ret>([this, phone](auto resolve, auto /*reject*/) {
+        LOGD() << "DbScoreAuthorizationService::sendCode phone=" << phone;
+
         QJsonObject body;
         body["phone"] = phone;
 
         doRequest(QUrl(API_BASE_URL + "/api/auth/send-code"), body).onResolve(this, [resolve](const RetVal<QJsonObject>& result) {
             if (!result.ret) {
+                LOGE() << "sendCode failed: " << result.ret.text();
                 resolve(result.ret);
                 return;
             }
+            LOGD() << "sendCode ok";
             resolve(make_ok());
         });
 

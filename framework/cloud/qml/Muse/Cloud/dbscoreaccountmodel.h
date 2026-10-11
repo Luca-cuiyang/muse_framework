@@ -38,6 +38,7 @@ class DbScoreAccountModel : public QObject, public async::Asyncable
     Q_PROPERTY(QString purchasePageUrl READ purchasePageUrl CONSTANT)
     Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
     Q_PROPERTY(QString lastError READ lastError NOTIFY lastErrorChanged)
+    Q_PROPERTY(QString sendCodeMessage READ sendCodeMessage NOTIFY sendCodeMessageChanged)
 
     QML_ELEMENT
 
@@ -62,6 +63,7 @@ public:
     QString purchasePageUrl() const;
     bool busy() const;
     QString lastError() const;
+    QString sendCodeMessage() const;
 
     Q_INVOKABLE void activate(const QString& code);
     Q_INVOKABLE void sendCode(const QString& phone);
@@ -75,15 +77,18 @@ signals:
     void modelChanged();
     void busyChanged();
     void lastErrorChanged();
+    void sendCodeMessageChanged();
     void activated();
     void refreshFinished();
 
 private:
     void setBusy(bool busy);
     void setLastError(const QString& error);
+    void setSendCodeMessage(const QString& message);
 
     bool m_busy = false;
     QString m_lastError;
+    QString m_sendCodeMessage;
 };
 }
 

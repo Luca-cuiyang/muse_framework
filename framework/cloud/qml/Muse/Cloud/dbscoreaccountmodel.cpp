@@ -147,6 +147,11 @@ QString DbScoreAccountModel::lastError() const
     return m_lastError;
 }
 
+QString DbScoreAccountModel::sendCodeMessage() const
+{
+    return m_sendCodeMessage;
+}
+
 void DbScoreAccountModel::activate(const QString& code)
 {
     if (m_busy) {
@@ -176,12 +181,15 @@ void DbScoreAccountModel::sendCode(const QString& phone)
 
     setBusy(true);
     setLastError(QString());
+    setSendCodeMessage(QString());
 
     authorization()->sendCode(phone).onResolve(this, [this](const muse::Ret& ret) {
         setBusy(false);
         if (!ret) {
             setLastError(QString::fromStdString(ret.text()));
+            return;
         }
+        setSendCodeMessage(QStringLiteral("验证码已发送，请注意查收短信"));
     });
 }
 
@@ -262,4 +270,14 @@ void DbScoreAccountModel::setLastError(const QString& error)
 
     m_lastError = error;
     emit lastErrorChanged();
+}
+
+void DbScoreAccountModel::setSendCodeMessage(const QString& message)
+{
+    if (m_sendCodeMessage == message) {
+        return;
+    }
+
+    m_sendCodeMessage = message;
+    emit sendCodeMessageChanged();
 }
