@@ -128,6 +128,9 @@ QDateTime DbScoreAuthorizationService::expireAt() const
     if (isPhoneLoggedIn()) {
         QString value = m_phoneUser.value("expireAt").toString();
         if (value.isEmpty()) {
+            value = m_phoneUser.value("memberExpireAt").toString();
+        }
+        if (value.isEmpty()) {
             return QDateTime();
         }
         return QDateTime::fromString(value, Qt::ISODate);
@@ -644,6 +647,9 @@ IDbScoreAuthorizationService::LicenseState DbScoreAuthorizationService::computeS
         QString memberType = m_phoneUser.value("memberType").toString();
         if (memberType != "free") {
             QString expire = m_phoneUser.value("expireAt").toString();
+            if (expire.isEmpty()) {
+                expire = m_phoneUser.value("memberExpireAt").toString();
+            }
             if (expire.isEmpty()) {
                 return LicenseState::Active;
             }
