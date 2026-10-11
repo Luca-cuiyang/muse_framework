@@ -365,6 +365,11 @@ QVariantList DbScoreAccountModel::ordersList() const
     return m_ordersList;
 }
 
+QVariantList DbScoreAccountModel::scoresList() const
+{
+    return m_scoresList;
+}
+
 static QVariantMap dataMap(const QVariantMap& obj)
 {
     QVariantMap data = obj.value("data").toMap();
@@ -438,6 +443,45 @@ void DbScoreAccountModel::loadOrders()
         QVariantMap data = dataMap(result.val);
         m_ordersList = data.value("list").toList();
         emit ordersChanged();
+    });
+}
+
+void DbScoreAccountModel::loadScores()
+{
+    authorization()->apiGet("/api/scores?page=1&pageSize=50").onResolve(this, [this](const muse::RetVal<QVariantMap>& result) {
+        if (!result.ret) {
+            return;
+        }
+
+        QVariantMap data = dataMap(result.val);
+        m_scoresList = data.value("list").toList();
+        emit scoresChanged();
+    });
+}
+
+void DbScoreAccountModel::submitFeedback(const QString& content, const QString& contact)
+{
+    if (m_busy || content.trimmed().isEmpty()) {
+        return;
+    }
+
+    setBusy(true);
+    setLastError(QString());
+
+    QVariantMap body;
+    body["content"] = content;
+    if (!contact.isEmpty()) {
+        body["contact"] = contact;
+    }
+
+    authorization()->apiPost("/api/feedback", body).onResolve(this, [this](const muse::RetVal<QVariantMap>& result) {
+        setBusy(false);
+        if (!result.ret) {
+            setLastError(QString::fromStdString(result.ret.text()));
+            return;
+        }
+
+        emit feedbackSent();
     });
 }
 
