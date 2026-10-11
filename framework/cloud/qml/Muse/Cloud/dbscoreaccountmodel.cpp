@@ -36,28 +36,17 @@ int DbScoreAccountModel::licenseState() const
 
 QString DbScoreAccountModel::statusText() const
 {
-    if (authorization()->isPhoneLoggedIn()) {
-        switch (authorization()->state()) {
-        case IDbScoreAuthorizationService::LicenseState::Active:
-            return QStringLiteral("🟢DB-Score年度会员，到期时间：") + expireAtText();
-        case IDbScoreAuthorizationService::LicenseState::Expired:
-            return QStringLiteral("⚠️会员已过期，请续费解锁增值功能");
-        case IDbScoreAuthorizationService::LicenseState::Trial:
-            return QStringLiteral("✅正在使用免费版 · 3天试用期，剩余：") + trialHoursText();
-        case IDbScoreAuthorizationService::LicenseState::TrialExpired:
-            return QStringLiteral("免费版 · 试用期已结束");
-        default:
-            return QStringLiteral("正在使用免费版");
-        }
+    if (!authorization()->isPhoneLoggedIn()) {
+        return QStringLiteral("未登录，登录后赠送3天免费试用");
     }
 
     switch (authorization()->state()) {
     case IDbScoreAuthorizationService::LicenseState::Active:
         return QStringLiteral("🟢DB-Score年度会员，到期时间：") + expireAtText();
     case IDbScoreAuthorizationService::LicenseState::Trial:
-        return QStringLiteral("✅正在3天免费试用期，剩余：") + trialHoursText();
+        return QStringLiteral("✅正在使用免费版 · 3天试用期，剩余：") + trialHoursText();
     case IDbScoreAuthorizationService::LicenseState::TrialExpired:
-        return QStringLiteral("⚠️免费试用已结束，请激活会员解锁增值功能");
+        return QStringLiteral("免费版 · 试用期已结束，开通会员解锁全部功能");
     case IDbScoreAuthorizationService::LicenseState::Expired:
         return QStringLiteral("⚠️会员已过期，请续费解锁增值功能");
     case IDbScoreAuthorizationService::LicenseState::Revoked:
@@ -211,6 +200,11 @@ QString DbScoreAccountModel::updateNotes() const
 void DbScoreAccountModel::activate(const QString& code)
 {
     if (m_busy) {
+        return;
+    }
+
+    if (!authorization()->isPhoneLoggedIn()) {
+        setLastError(QStringLiteral("请先登录后，才能激活会员"));
         return;
     }
 

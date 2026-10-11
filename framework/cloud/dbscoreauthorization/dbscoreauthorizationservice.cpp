@@ -91,7 +91,6 @@ void DbScoreAuthorizationService::init()
     settings()->setDefaultValue(PHONE_TOKEN_KEY, Val(std::string()));
     settings()->setDefaultValue(PHONE_USER_KEY, Val(std::string()));
 
-    setTrialStartNowIfNeeded();
     (void)machineDeviceId();
     applyOfflineGraceWindow();
     m_phoneToken = settings()->value(PHONE_TOKEN_KEY).toQString();
@@ -117,33 +116,38 @@ bool DbScoreAuthorizationService::hasProAccess() const
 
 QString DbScoreAuthorizationService::licenseCode() const
 {
+    if (!isPhoneLoggedIn()) {
+        return QString();
+    }
     return loadLicense().value("code").toString();
 }
 
 QString DbScoreAuthorizationService::memberType() const
 {
-    // 激活码会员优先于手机号会员状态
+    if (!isPhoneLoggedIn()) {
+        return QString();
+    }
+
+    QString mt = m_phoneUser.value("memberType").toString();
+    if (mt != "free") {
+        return mt;
+    }
+
+    // 免费账号但激活码生效中：视为正式会员（等 /api/user 同步）
     if (isLicenseActive()) {
         return loadLicense().value("memberType").toString();
     }
-
-    if (isPhoneLoggedIn()) {
-        return m_phoneUser.value("memberType").toString();
-    }
-    return loadLicense().value("memberType").toString();
+    return QStringLiteral("free");
 }
 
 QDateTime DbScoreAuthorizationService::expireAt() const
 {
-    // 激活码会员优先返回激活码的到期时间
-    if (isLicenseActive()) {
-        QString value = loadLicense().value("expireAt").toString();
-        if (!value.isEmpty()) {
-            return QDateTime::fromString(value, Qt::ISODate);
-        }
+    if (!isPhoneLoggedIn()) {
+        return QDateTime();
     }
 
-    if (isPhoneLoggedIn()) {
+    QString mt = m_phoneUser.value("memberType").toString();
+    if (mt != "free") {
         QString value = m_phoneUser.value("expireAt").toString();
         if (value.isEmpty()) {
             value = m_phoneUser.value("memberExpireAt").toString();
@@ -154,12 +158,15 @@ QDateTime DbScoreAuthorizationService::expireAt() const
         return QDateTime::fromString(value, Qt::ISODate);
     }
 
-    QString value = loadLicense().value("expireAt").toString();
-    if (value.isEmpty()) {
-        return QDateTime();
+    // 免费账号但激活码生效中：返回激活码到期时间
+    if (isLicenseActive()) {
+        QString value = loadLicense().value("expireAt").toString();
+        if (!value.isEmpty()) {
+            return QDateTime::fromString(value, Qt::ISODate);
+        }
     }
 
-    return QDateTime::fromString(value, Qt::ISODate);
+    return QDateTime();
 }
 
 QString DbScoreAuthorizationService::deviceId() const
@@ -242,7 +249,8 @@ async::Promise<Ret> DbScoreAuthorizationService::activate(const QString& code, c
         body["deviceName"] = deviceName.isEmpty() ? defaultDeviceName() : deviceName;
         body["appVersion"] = appVersion();
 
-        doRequest(QUrl(ACTIVATE_URL), body).onResolve(this, [this, resolve](const RetVal<QJsonObject>& result) {
+        // 带登录态，让后端把激活码绑定到当前账号
+        doRequest(QUrl(ACTIVATE_URL), body, authHeaders()).onResolve(this, [this, resolve](const RetVal<QJsonObject>& result) {
             if (!result.ret) {
                 resolve(result.ret);
                 return;
@@ -255,7 +263,11 @@ async::Promise<Ret> DbScoreAuthorizationService::activate(const QString& code, c
             }
 
             settings()->setLocalValue(LAST_SYNC_MS_KEY, Val(QDateTime::currentMSecsSinceEpoch()));
-            resolve(make_ok());
+            // 激活后刷新账号会员状态（后端将激活码绑定到账号后，/api/user 会返回 standard）
+            refreshPhoneUser().onResolve(this, [this, resolve](const Ret&) {
+                notifyStateChanged();
+                resolve(make_ok());
+            });
         });
 
         return Promise<Ret>::dummy_result();
@@ -306,6 +318,7 @@ async::Promise<Ret> DbScoreAuthorizationService::loginByPhone(const QString& pho
             m_phoneUser = result.val.value("user").toObject();
             m_phoneLoggedIn = true;
             savePhoneSession();
+            setTrialStartNowIfNeeded();
 
             refreshPhoneUser().onResolve(this, [this, resolve](const Ret&) {
                 notifyStateChanged();
@@ -343,6 +356,7 @@ async::Promise<Ret> DbScoreAuthorizationService::registerByPhone(const QString& 
             m_phoneUser = result.val.value("user").toObject();
             m_phoneLoggedIn = true;
             savePhoneSession();
+            setTrialStartNowIfNeeded();
 
             refreshPhoneUser().onResolve(this, [this, resolve](const Ret&) {
                 notifyStateChanged();
@@ -476,6 +490,8 @@ void DbScoreAuthorizationService::logout()
     m_phoneLoggedIn = false;
     settings()->setLocalValue(PHONE_TOKEN_KEY, Val(std::string()));
     settings()->setLocalValue(PHONE_USER_KEY, Val(std::string()));
+    // 退出登录后，激活码会员状态一并清除，避免残留显示
+    clearStoredLicense();
     notifyStateChanged();
 }
 
@@ -832,62 +848,35 @@ bool DbScoreAuthorizationService::isLicenseActive() const
 
 IDbScoreAuthorizationService::LicenseState DbScoreAuthorizationService::computeState() const
 {
-    bool licenseActive = false;
-    bool licenseExpired = false;
-    QJsonObject license = loadLicense();
-    if (!license.isEmpty()) {
-        QString status = license.value("status").toString();
-        if (status == "revoked") {
-            // 被停用：不视为会员
-        } else if (status == "active") {
-            QString expire = license.value("expireAt").toString();
-            if (expire.isEmpty()) {
-                // 年度会员不存在永久授权，无到期时间视为已过期
-                licenseExpired = true;
-            } else {
-                QDateTime expireAt = QDateTime::fromString(expire, Qt::ISODate);
-                if (expireAt.isValid() && expireAt > QDateTime::currentDateTimeUtc()) {
-                    licenseActive = true;
-                } else {
-                    licenseExpired = true;
-                }
-            }
+    // 未登录：不判定会员，界面按“未登录”处理
+    if (!isPhoneLoggedIn()) {
+        return LicenseState::TrialExpired;
+    }
+
+    // 已登录：账号为正式会员
+    QString memberType = m_phoneUser.value("memberType").toString();
+    if (memberType != "free") {
+        QString expire = m_phoneUser.value("expireAt").toString();
+        if (expire.isEmpty()) {
+            expire = m_phoneUser.value("memberExpireAt").toString();
         }
-    }
-
-    bool phoneMember = false;
-    bool phoneExpired = false;
-    if (isPhoneLoggedIn()) {
-        QString memberType = m_phoneUser.value("memberType").toString();
-        if (memberType != "free") {
-            QString expire = m_phoneUser.value("expireAt").toString();
-            if (expire.isEmpty()) {
-                expire = m_phoneUser.value("memberExpireAt").toString();
-            }
-            if (expire.isEmpty()) {
-                phoneMember = true;
-            } else {
-                QDateTime expireAt = QDateTime::fromString(expire, Qt::ISODate);
-                if (expireAt.isValid() && expireAt > QDateTime::currentDateTimeUtc()) {
-                    phoneMember = true;
-                } else {
-                    phoneExpired = true;
-                }
-            }
+        if (expire.isEmpty()) {
+            // 年卡必须有到期时间，没有则视为过期
+            return LicenseState::Expired;
         }
-    }
-
-    // 激活码会员或付费会员任一有效，即视为正式会员
-    if (licenseActive || phoneMember) {
-        return LicenseState::Active;
-    }
-
-    // 已过期（付费或激活码）
-    if (licenseExpired || phoneExpired) {
+        QDateTime expireAt = QDateTime::fromString(expire, Qt::ISODate);
+        if (expireAt.isValid() && expireAt > QDateTime::currentDateTimeUtc()) {
+            return LicenseState::Active;
+        }
         return LicenseState::Expired;
     }
 
-    // 免费用户：仍在 3 天试用期内则按试用中处理
+    // 已登录免费账号：激活码刚激活但 /api/user 尚未同步时，用本地 license 兜底
+    if (isLicenseActive()) {
+        return LicenseState::Active;
+    }
+
+    // 免费账号：3 天试用
     return isTrialActive() ? LicenseState::Trial : LicenseState::TrialExpired;
 }
 
