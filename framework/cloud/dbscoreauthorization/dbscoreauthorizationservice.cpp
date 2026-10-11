@@ -221,7 +221,7 @@ async::Promise<Ret> DbScoreAuthorizationService::activate(const QString& code, c
                 return;
             }
 
-            QJsonObject license = result.val.value("license").toObject();
+            QJsonObject license = result.val.value("data").toObject().value("license").toObject();
             if (!license.isEmpty()) {
                 saveLicense(license);
                 notifyStateChanged();
@@ -347,8 +347,9 @@ async::Promise<Ret> DbScoreAuthorizationService::refresh()
                 return;
             }
 
-            if (result.val.contains("license")) {
-                QJsonObject license = result.val.value("license").toObject();
+            QJsonObject dataObj = result.val.value("data").toObject();
+            if (dataObj.contains("license")) {
+                QJsonObject license = dataObj.value("license").toObject();
                 if (license.isEmpty()) {
                     // 服务端明确表示无授权（可能被解绑/停用/删除）
                     clearStoredLicense();
@@ -519,8 +520,8 @@ async::Promise<RetVal<QJsonObject> > DbScoreAuthorizationService::doRequest(cons
                 return;
             }
 
-            QJsonObject data = obj.value("data").toObject();
-            resolve(RetVal<QJsonObject>::make_ok(data));
+            // 不同接口响应格式不同：有些把数据包在 data 里，有些直接放在顶层（如 auth/login 的 token）
+            resolve(RetVal<QJsonObject>::make_ok(obj));
         });
 
         return Promise<RetVal<QJsonObject> >::dummy_result();
