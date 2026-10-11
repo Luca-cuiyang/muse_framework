@@ -54,6 +54,8 @@ class DbScoreAccountModel : public QObject, public async::Asyncable
     Q_PROPERTY(int inviteeCount READ inviteeCount NOTIFY inviteChanged)
     Q_PROPERTY(QVariantList ordersList READ ordersList NOTIFY ordersChanged)
     Q_PROPERTY(QVariantList scoresList READ scoresList NOTIFY scoresChanged)
+    Q_PROPERTY(QVariantList projectsList READ projectsList NOTIFY projectsChanged)
+    Q_PROPERTY(QVariantList notificationsList READ notificationsList NOTIFY notificationsChanged)
 
     QML_ELEMENT
 
@@ -93,6 +95,8 @@ public:
     int inviteeCount() const;
     QVariantList ordersList() const;
     QVariantList scoresList() const;
+    QVariantList projectsList() const;
+    QVariantList notificationsList() const;
 
     Q_INVOKABLE void activate(const QString& code);
     Q_INVOKABLE void sendCode(const QString& phone);
@@ -110,6 +114,8 @@ public:
     Q_INVOKABLE void loadOrders();
     Q_INVOKABLE void loadScores();
     Q_INVOKABLE void submitFeedback(const QString& content, const QString& contact);
+    Q_INVOKABLE void loadProjects();
+    Q_INVOKABLE void loadNotifications();
 
 signals:
     void modelChanged();
@@ -122,6 +128,8 @@ signals:
     void ordersChanged();
     void scoresChanged();
     void feedbackSent();
+    void projectsChanged();
+    void notificationsChanged();
     void activated();
     void refreshFinished();
 
@@ -146,6 +154,8 @@ private:
     int m_inviteeCount = 0;
     QVariantList m_ordersList;
     QVariantList m_scoresList;
+    QVariantList m_projectsList;
+    QVariantList m_notificationsList;
 };
 }
 

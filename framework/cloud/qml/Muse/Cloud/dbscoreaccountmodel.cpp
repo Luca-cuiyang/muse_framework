@@ -370,6 +370,16 @@ QVariantList DbScoreAccountModel::scoresList() const
     return m_scoresList;
 }
 
+QVariantList DbScoreAccountModel::projectsList() const
+{
+    return m_projectsList;
+}
+
+QVariantList DbScoreAccountModel::notificationsList() const
+{
+    return m_notificationsList;
+}
+
 static QVariantMap dataMap(const QVariantMap& obj)
 {
     QVariantMap data = obj.value("data").toMap();
@@ -482,6 +492,32 @@ void DbScoreAccountModel::submitFeedback(const QString& content, const QString& 
         }
 
         emit feedbackSent();
+    });
+}
+
+void DbScoreAccountModel::loadProjects()
+{
+    authorization()->apiGet("/api/projects?page=1&pageSize=50").onResolve(this, [this](const muse::RetVal<QVariantMap>& result) {
+        if (!result.ret) {
+            return;
+        }
+
+        QVariantMap data = dataMap(result.val);
+        m_projectsList = data.value("list").toList();
+        emit projectsChanged();
+    });
+}
+
+void DbScoreAccountModel::loadNotifications()
+{
+    authorization()->apiGet("/api/notifications?page=1&pageSize=50").onResolve(this, [this](const muse::RetVal<QVariantMap>& result) {
+        if (!result.ret) {
+            return;
+        }
+
+        QVariantMap data = dataMap(result.val);
+        m_notificationsList = data.value("list").toList();
+        emit notificationsChanged();
     });
 }
 
