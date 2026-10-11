@@ -401,8 +401,24 @@ async::Promise<Ret> DbScoreAuthorizationService::refresh()
         url.setQuery(query);
 
         if (isPhoneLoggedIn()) {
-            refreshPhoneUser().onResolve(this, [resolve](const Ret& ret) {
-                resolve(ret);
+            // 先带登录态同步激活码（触发后端把历史激活码补绑到账号），再刷新账号会员状态
+            doRequest(url, QJsonObject(), authHeaders()).onResolve(this, [this, resolve](const RetVal<QJsonObject>& result) {
+                if (result.ret) {
+                    QJsonObject dataObj = result.val.value("data").toObject();
+                    if (dataObj.contains("license")) {
+                        QJsonObject license = dataObj.value("license").toObject();
+                        if (license.isEmpty()) {
+                            clearStoredLicense();
+                        } else {
+                            saveLicense(license);
+                        }
+                    }
+                }
+
+                refreshPhoneUser().onResolve(this, [this, resolve](const Ret& ret) {
+                    notifyStateChanged();
+                    resolve(ret);
+                });
             });
             return Promise<Ret>::dummy_result();
         }
