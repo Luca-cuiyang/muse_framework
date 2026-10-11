@@ -478,7 +478,21 @@ async::Promise<RetVal<QJsonObject> > DbScoreAuthorizationService::doRequest(cons
             LOGD() << "doRequest finished url=" << url.toString() << " ret=" << res.ret.success();
 
             if (!res.ret) {
-                resolve(RetVal<QJsonObject>::make_ret(res.ret));
+                // 后端返回 4xx 时，尝试从响应体里取更友好的错误提示
+                QJsonParseError err;
+                QJsonObject errObj = jsonObjectFromData(received->data(), &err);
+                QString errMsg;
+                if (err.error == QJsonParseError::NoError && !errObj.isEmpty()) {
+                    errMsg = errObj.value("message").toString();
+                    if (errMsg.isEmpty()) {
+                        errMsg = errObj.value("error").toString();
+                    }
+                }
+                if (errMsg.isEmpty()) {
+                    resolve(RetVal<QJsonObject>::make_ret(res.ret));
+                } else {
+                    resolve(RetVal<QJsonObject>::make_ret(Ret::Code::InternalError, errMsg.toStdString()));
+                }
                 return;
             }
 
@@ -515,7 +529,12 @@ async::Promise<RetVal<QJsonObject> > DbScoreAuthorizationService::doRequest(cons
 
 network::INetworkManagerPtr DbScoreAuthorizationService::networkManager()
 {
-    return networkManagerCreator()->makeNetworkManager();
+    // 必须保存为成员：若作为临时对象，请求发出后对象被销毁，网络请求会被中断，
+    // 导致 finished 永远不触发、界面一直等待超时。
+    if (!m_networkManager) {
+        m_networkManager = networkManagerCreator()->makeNetworkManager();
+    }
+    return m_networkManager;
 }
 
 QString DbScoreAuthorizationService::machineDeviceId() const

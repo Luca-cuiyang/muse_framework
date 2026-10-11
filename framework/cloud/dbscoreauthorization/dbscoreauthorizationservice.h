@@ -104,6 +104,7 @@ private:
     bool m_phoneLoggedIn = false;
     QString m_phoneToken;
     QJsonObject m_phoneUser;
+    network::INetworkManagerPtr m_networkManager;
 };
 }
 
