@@ -52,12 +52,14 @@ public:
 
     QString apiBaseUrl() const override;
     QString purchasePageUrl() const override;
+    QString currentVersion() const override;
 
     async::Promise<muse::Ret> activate(const QString& code, const QString& deviceName) override;
     async::Promise<muse::Ret> sendCode(const QString& phone) override;
     async::Promise<muse::Ret> loginByPhone(const QString& phone, const QString& code) override;
     async::Promise<muse::Ret> registerByPhone(const QString& phone, const QString& code, const QString& nickname) override;
     async::Promise<muse::Ret> refresh() override;
+    async::Promise<muse::RetVal<QVariantMap> > checkForUpdate() override;
     void clearLicense() override;
     void logout() override;
 
@@ -70,6 +72,7 @@ private:
     QString machineDeviceId() const;
     QString defaultDeviceName() const;
     QString appVersion() const;
+    QString updatePlatformKey() const;
     QString authTokenHeader() const;
 
     void setTrialStartNowIfNeeded();

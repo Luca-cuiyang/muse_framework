@@ -154,6 +154,31 @@ QString DbScoreAccountModel::sendCodeMessage() const
     return m_sendCodeMessage;
 }
 
+QString DbScoreAccountModel::currentVersion() const
+{
+    return authorization()->currentVersion();
+}
+
+QString DbScoreAccountModel::latestVersion() const
+{
+    return m_latestVersion;
+}
+
+bool DbScoreAccountModel::updateAvailable() const
+{
+    return m_updateAvailable;
+}
+
+QString DbScoreAccountModel::updateDownloadUrl() const
+{
+    return m_updateDownloadUrl;
+}
+
+QString DbScoreAccountModel::updateNotes() const
+{
+    return m_updateNotes;
+}
+
 void DbScoreAccountModel::activate(const QString& code)
 {
     if (m_busy) {
@@ -267,6 +292,37 @@ void DbScoreAccountModel::copyText(const QString& text)
     }
 
     QGuiApplication::clipboard()->setText(text);
+}
+
+void DbScoreAccountModel::checkForUpdate()
+{
+    if (m_busy) {
+        return;
+    }
+
+    setBusy(true);
+    setLastError(QString());
+
+    authorization()->checkForUpdate().onResolve(this, [this](const muse::RetVal<QVariantMap>& result) {
+        setBusy(false);
+        if (!result.ret) {
+            setLastError(QString::fromStdString(result.ret.text()));
+            return;
+        }
+
+        m_latestVersion = result.val.value("latestVersion").toString();
+        m_updateDownloadUrl = result.val.value("downloadUrl").toString();
+        m_updateNotes = result.val.value("notes").toString();
+        m_updateAvailable = result.val.value("hasUpdate").toBool();
+        emit updateInfoChanged();
+    });
+}
+
+void DbScoreAccountModel::openUpdateDownload()
+{
+    if (!m_updateDownloadUrl.isEmpty()) {
+        QDesktopServices::openUrl(QUrl(m_updateDownloadUrl));
+    }
 }
 
 void DbScoreAccountModel::setBusy(bool busy)

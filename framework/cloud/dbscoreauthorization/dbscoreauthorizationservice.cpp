@@ -200,6 +200,11 @@ QString DbScoreAuthorizationService::purchasePageUrl() const
     return PURCHASE_PAGE_URL;
 }
 
+QString DbScoreAuthorizationService::currentVersion() const
+{
+    return appVersion();
+}
+
 async::Promise<Ret> DbScoreAuthorizationService::activate(const QString& code, const QString& deviceName)
 {
     return make_promise<Ret>([this, code, deviceName](auto resolve, auto /*reject*/) {
@@ -372,6 +377,45 @@ void DbScoreAuthorizationService::clearLicense()
 {
     clearStoredLicense();
     notifyStateChanged();
+}
+
+async::Promise<RetVal<QVariantMap> > DbScoreAuthorizationService::checkForUpdate()
+{
+    return make_promise<RetVal<QVariantMap> >([this](auto resolve, auto /*reject*/) {
+        doRequest(QUrl(API_BASE_URL + "/api/software"), QJsonObject()).onResolve(this, [this, resolve](const RetVal<QJsonObject>& result) {
+            if (!result.ret) {
+                resolve(RetVal<QVariantMap>::make_ret(result.ret));
+                return;
+            }
+
+            QVariantMap info;
+            QString key = updatePlatformKey();
+            QJsonObject pkg = result.val.value(key).toObject();
+            QString latest = pkg.value("version").toString();
+            QString url = pkg.value("url").toString();
+            QString notes = pkg.value("notes").toString();
+
+            if (!url.isEmpty() && url.startsWith('/')) {
+                url = API_BASE_URL + url;
+            }
+
+            info["latestVersion"] = latest;
+            info["downloadUrl"] = url;
+            info["notes"] = notes;
+
+            bool hasUpdate = false;
+            if (!latest.isEmpty()) {
+                Version current = application()->version();
+                Version remote(latest.toStdString());
+                hasUpdate = current < remote;
+            }
+            info["hasUpdate"] = hasUpdate;
+
+            resolve(RetVal<QVariantMap>::make_ok(info));
+        });
+
+        return Promise<RetVal<QVariantMap> >::dummy_result();
+    });
 }
 
 void DbScoreAuthorizationService::logout()
@@ -581,6 +625,17 @@ QString DbScoreAuthorizationService::appVersion() const
     }
 
     return version;
+}
+
+QString DbScoreAuthorizationService::updatePlatformKey() const
+{
+#ifdef Q_OS_MACOS
+    return QStringLiteral("mac");
+#elif defined(Q_OS_WIN)
+    return QStringLiteral("win");
+#else
+    return QStringLiteral("linux");
+#endif
 }
 
 void DbScoreAuthorizationService::setTrialStartNowIfNeeded()

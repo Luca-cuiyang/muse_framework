@@ -10,6 +10,7 @@
 
 #include <QDateTime>
 #include <QString>
+#include <QVariantMap>
 
 #include "modularity/imoduleinterface.h"
 #include "async/promise.h"
@@ -52,12 +53,14 @@ public:
 
     virtual QString apiBaseUrl() const = 0;
     virtual QString purchasePageUrl() const = 0;
+    virtual QString currentVersion() const = 0;
 
     virtual async::Promise<muse::Ret> activate(const QString& code, const QString& deviceName) = 0;
     virtual async::Promise<muse::Ret> sendCode(const QString& phone) = 0;
     virtual async::Promise<muse::Ret> loginByPhone(const QString& phone, const QString& code) = 0;
     virtual async::Promise<muse::Ret> registerByPhone(const QString& phone, const QString& code, const QString& nickname) = 0;
     virtual async::Promise<muse::Ret> refresh() = 0;
+    virtual async::Promise<muse::RetVal<QVariantMap> > checkForUpdate() = 0;
     virtual void clearLicense() = 0;
     virtual void logout() = 0;
 

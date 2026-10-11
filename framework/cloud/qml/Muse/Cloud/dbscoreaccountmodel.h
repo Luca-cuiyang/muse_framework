@@ -39,6 +39,11 @@ class DbScoreAccountModel : public QObject, public async::Asyncable
     Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
     Q_PROPERTY(QString lastError READ lastError NOTIFY lastErrorChanged)
     Q_PROPERTY(QString sendCodeMessage READ sendCodeMessage NOTIFY sendCodeMessageChanged)
+    Q_PROPERTY(QString currentVersion READ currentVersion CONSTANT)
+    Q_PROPERTY(QString latestVersion READ latestVersion NOTIFY updateInfoChanged)
+    Q_PROPERTY(bool updateAvailable READ updateAvailable NOTIFY updateInfoChanged)
+    Q_PROPERTY(QString updateDownloadUrl READ updateDownloadUrl NOTIFY updateInfoChanged)
+    Q_PROPERTY(QString updateNotes READ updateNotes NOTIFY updateInfoChanged)
 
     QML_ELEMENT
 
@@ -64,6 +69,11 @@ public:
     bool busy() const;
     QString lastError() const;
     QString sendCodeMessage() const;
+    QString currentVersion() const;
+    QString latestVersion() const;
+    bool updateAvailable() const;
+    QString updateDownloadUrl() const;
+    QString updateNotes() const;
 
     Q_INVOKABLE void activate(const QString& code);
     Q_INVOKABLE void sendCode(const QString& phone);
@@ -73,12 +83,15 @@ public:
     Q_INVOKABLE void logout();
     Q_INVOKABLE void openPurchasePage();
     Q_INVOKABLE void copyText(const QString& text);
+    Q_INVOKABLE void checkForUpdate();
+    Q_INVOKABLE void openUpdateDownload();
 
 signals:
     void modelChanged();
     void busyChanged();
     void lastErrorChanged();
     void sendCodeMessageChanged();
+    void updateInfoChanged();
     void activated();
     void refreshFinished();
 
@@ -90,6 +103,10 @@ private:
     bool m_busy = false;
     QString m_lastError;
     QString m_sendCodeMessage;
+    QString m_latestVersion;
+    QString m_updateDownloadUrl;
+    QString m_updateNotes;
+    bool m_updateAvailable = false;
 };
 }
 
