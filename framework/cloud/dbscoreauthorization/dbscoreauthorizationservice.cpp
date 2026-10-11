@@ -37,7 +37,7 @@ static const QString API_BASE_URL("https://drumbearai.com");
 static const QString ACTIVATE_URL(API_BASE_URL + "/api/dbscore/activate");
 static const QString LICENSE_URL(API_BASE_URL + "/api/dbscore/license");
 static const QString HEARTBEAT_URL(API_BASE_URL + "/api/dbscore/heartbeat");
-static const QString PURCHASE_PAGE_URL(API_BASE_URL + "/");
+static const QString PURCHASE_PAGE_URL(API_BASE_URL + "/membership");
 
 static constexpr qint64 TRIAL_DURATION_MS = 3 * 24 * 60 * 60 * 1000LL; // 3 天
 
