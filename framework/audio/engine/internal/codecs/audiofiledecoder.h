@@ -48,8 +48,7 @@ private:
     bool decodeFlac(const std::vector<uint8_t>& bytes);
     bool decodeOgg(const std::vector<uint8_t>& bytes);
     bool decodeMp3(const std::vector<uint8_t>& bytes);
-    bool decodeMp4(const std::vector<uint8_t>& bytes);
-    bool decodeAdts(const std::vector<uint8_t>& bytes);
+    bool decodeFfmpeg(const std::vector<uint8_t>& bytes);
 
     unsigned int m_channels = 0;
     unsigned int m_sampleRate = 0;

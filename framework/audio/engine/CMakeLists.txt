@@ -165,6 +165,8 @@ else()
         internal/codecs/wavdecoder.h
         internal/codecs/audiofiledecoder.cpp
         internal/codecs/audiofiledecoder.h
+        internal/codecs/ffmpegdecoder.cpp
+        internal/codecs/ffmpegdecoder.h
         internal/codecs/timestretcher.cpp
         internal/codecs/timestretcher.h
     )
@@ -182,6 +184,13 @@ else()
         internal/codecs/audiofiledecoder.cpp
         PROPERTIES
         SKIP_UNITY_BUILD_INCLUSION ON
+    )
+
+    set_source_files_properties(
+        internal/codecs/ffmpegdecoder.cpp
+        PROPERTIES
+        SKIP_UNITY_BUILD_INCLUSION ON
+        INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/../../media/thirdparty/ffmpeg/v8"
     )
 
     if (OS_IS_WASM)
