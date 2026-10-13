@@ -35,7 +35,6 @@ class DbScoreAccountModel : public QObject, public async::Asyncable
     Q_PROPERTY(bool phoneLoggedIn READ phoneLoggedIn NOTIFY modelChanged)
     Q_PROPERTY(QString phoneMasked READ phoneMasked NOTIFY modelChanged)
     Q_PROPERTY(QString phoneNickname READ phoneNickname NOTIFY modelChanged)
-    Q_PROPERTY(QString avatarUrl READ avatarUrl NOTIFY modelChanged)
     Q_PROPERTY(QString avatarLetter READ avatarLetter NOTIFY modelChanged)
     Q_PROPERTY(QString apiBaseUrl READ apiBaseUrl CONSTANT)
     Q_PROPERTY(QString purchasePageUrl READ purchasePageUrl CONSTANT)
@@ -48,17 +47,12 @@ class DbScoreAccountModel : public QObject, public async::Asyncable
     Q_PROPERTY(bool updateAvailable READ updateAvailable NOTIFY updateInfoChanged)
     Q_PROPERTY(QString updateDownloadUrl READ updateDownloadUrl NOTIFY updateInfoChanged)
     Q_PROPERTY(QString updateNotes READ updateNotes NOTIFY updateInfoChanged)
-    Q_PROPERTY(int pointsBalance READ pointsBalance NOTIFY pointsChanged)
-    Q_PROPERTY(bool todayCheckedIn READ todayCheckedIn NOTIFY pointsChanged)
     Q_PROPERTY(QString inviteCode READ inviteCode NOTIFY inviteChanged)
     Q_PROPERTY(QString inviteUrl READ inviteUrl NOTIFY inviteChanged)
     Q_PROPERTY(int commissionBalanceCents READ commissionBalanceCents NOTIFY inviteChanged)
     Q_PROPERTY(int totalEarnedCents READ totalEarnedCents NOTIFY inviteChanged)
     Q_PROPERTY(int inviteeCount READ inviteeCount NOTIFY inviteChanged)
     Q_PROPERTY(QVariantList ordersList READ ordersList NOTIFY ordersChanged)
-    Q_PROPERTY(QVariantList scoresList READ scoresList NOTIFY scoresChanged)
-    Q_PROPERTY(QVariantList projectsList READ projectsList NOTIFY projectsChanged)
-    Q_PROPERTY(QVariantList notificationsList READ notificationsList NOTIFY notificationsChanged)
 
     QML_ELEMENT
 
@@ -79,7 +73,6 @@ public:
     bool phoneLoggedIn() const;
     QString phoneMasked() const;
     QString phoneNickname() const;
-    QString avatarUrl() const;
     QString avatarLetter() const;
     QString apiBaseUrl() const;
     QString purchasePageUrl() const;
@@ -92,17 +85,12 @@ public:
     bool updateAvailable() const;
     QString updateDownloadUrl() const;
     QString updateNotes() const;
-    int pointsBalance() const;
-    bool todayCheckedIn() const;
     QString inviteCode() const;
     QString inviteUrl() const;
     int commissionBalanceCents() const;
     int totalEarnedCents() const;
     int inviteeCount() const;
     QVariantList ordersList() const;
-    QVariantList scoresList() const;
-    QVariantList projectsList() const;
-    QVariantList notificationsList() const;
 
     Q_INVOKABLE void activate(const QString& code);
     Q_INVOKABLE void sendCode(const QString& phone);
@@ -114,14 +102,9 @@ public:
     Q_INVOKABLE void copyText(const QString& text);
     Q_INVOKABLE void checkForUpdate();
     Q_INVOKABLE void openUpdateDownload();
-    Q_INVOKABLE void loadPoints();
-    Q_INVOKABLE void checkIn();
     Q_INVOKABLE void loadInvite();
     Q_INVOKABLE void loadOrders();
-    Q_INVOKABLE void loadScores();
     Q_INVOKABLE void submitFeedback(const QString& content, const QString& contact);
-    Q_INVOKABLE void loadProjects();
-    Q_INVOKABLE void loadNotifications();
 
 signals:
     void modelChanged();
@@ -130,13 +113,9 @@ signals:
     void sendCodeMessageChanged();
     void activationMessageChanged();
     void updateInfoChanged();
-    void pointsChanged();
     void inviteChanged();
     void ordersChanged();
-    void scoresChanged();
     void feedbackSent();
-    void projectsChanged();
-    void notificationsChanged();
     void activated();
     void refreshFinished();
 
@@ -154,17 +133,12 @@ private:
     QString m_updateDownloadUrl;
     QString m_updateNotes;
     bool m_updateAvailable = false;
-    int m_pointsBalance = 0;
-    bool m_todayCheckedIn = false;
     QString m_inviteCode;
     QString m_inviteUrl;
     int m_commissionBalanceCents = 0;
     int m_totalEarnedCents = 0;
     int m_inviteeCount = 0;
     QVariantList m_ordersList;
-    QVariantList m_scoresList;
-    QVariantList m_projectsList;
-    QVariantList m_notificationsList;
 };
 }
 

@@ -86,8 +86,9 @@ QString DbScoreAccountModel::trialHoursText() const
     }
 
     if (hours >= 24.0) {
-        int days = qCeil(hours / 24.0);
-        int remainHours = qRound(hours) % 24;
+        int totalHours = qRound(hours);
+        int days = totalHours / 24;
+        int remainHours = totalHours % 24;
         if (remainHours > 0) {
             return QString::number(days) + QStringLiteral("天")
                    + QString::number(remainHours) + QStringLiteral("小时");
@@ -130,11 +131,6 @@ QString DbScoreAccountModel::phoneMasked() const
 QString DbScoreAccountModel::phoneNickname() const
 {
     return authorization()->phoneNickname();
-}
-
-QString DbScoreAccountModel::avatarUrl() const
-{
-    return authorization()->avatarUrl();
 }
 
 QString DbScoreAccountModel::avatarLetter() const
@@ -360,16 +356,6 @@ void DbScoreAccountModel::openUpdateDownload()
     }
 }
 
-int DbScoreAccountModel::pointsBalance() const
-{
-    return m_pointsBalance;
-}
-
-bool DbScoreAccountModel::todayCheckedIn() const
-{
-    return m_todayCheckedIn;
-}
-
 QString DbScoreAccountModel::inviteCode() const
 {
     return m_inviteCode;
@@ -400,21 +386,6 @@ QVariantList DbScoreAccountModel::ordersList() const
     return m_ordersList;
 }
 
-QVariantList DbScoreAccountModel::scoresList() const
-{
-    return m_scoresList;
-}
-
-QVariantList DbScoreAccountModel::projectsList() const
-{
-    return m_projectsList;
-}
-
-QVariantList DbScoreAccountModel::notificationsList() const
-{
-    return m_notificationsList;
-}
-
 static QVariantMap dataMap(const QVariantMap& obj)
 {
     QVariantMap data = obj.value("data").toMap();
@@ -422,43 +393,6 @@ static QVariantMap dataMap(const QVariantMap& obj)
         data = obj;
     }
     return data;
-}
-
-void DbScoreAccountModel::loadPoints()
-{
-    authorization()->apiGet("/api/points").onResolve(this, [this](const muse::RetVal<QVariantMap>& result) {
-        if (!result.ret) {
-            return;
-        }
-
-        QVariantMap data = dataMap(result.val);
-        m_pointsBalance = data.value("balance").toInt();
-        m_todayCheckedIn = data.value("todayCheckedIn").toBool();
-        emit pointsChanged();
-    });
-}
-
-void DbScoreAccountModel::checkIn()
-{
-    if (m_busy) {
-        return;
-    }
-
-    setBusy(true);
-    setLastError(QString());
-
-    authorization()->apiPost("/api/points/checkin", QVariantMap()).onResolve(this, [this](const muse::RetVal<QVariantMap>& result) {
-        setBusy(false);
-        if (!result.ret) {
-            setLastError(QString::fromStdString(result.ret.text()));
-            return;
-        }
-
-        QVariantMap data = dataMap(result.val);
-        m_pointsBalance = data.value("balance").toInt();
-        m_todayCheckedIn = true;
-        emit pointsChanged();
-    });
 }
 
 void DbScoreAccountModel::loadInvite()
@@ -491,19 +425,6 @@ void DbScoreAccountModel::loadOrders()
     });
 }
 
-void DbScoreAccountModel::loadScores()
-{
-    authorization()->apiGet("/api/scores?page=1&pageSize=50").onResolve(this, [this](const muse::RetVal<QVariantMap>& result) {
-        if (!result.ret) {
-            return;
-        }
-
-        QVariantMap data = dataMap(result.val);
-        m_scoresList = data.value("list").toList();
-        emit scoresChanged();
-    });
-}
-
 void DbScoreAccountModel::submitFeedback(const QString& content, const QString& contact)
 {
     if (m_busy || content.trimmed().isEmpty()) {
@@ -527,32 +448,6 @@ void DbScoreAccountModel::submitFeedback(const QString& content, const QString& 
         }
 
         emit feedbackSent();
-    });
-}
-
-void DbScoreAccountModel::loadProjects()
-{
-    authorization()->apiGet("/api/projects?page=1&pageSize=50").onResolve(this, [this](const muse::RetVal<QVariantMap>& result) {
-        if (!result.ret) {
-            return;
-        }
-
-        QVariantMap data = dataMap(result.val);
-        m_projectsList = data.value("list").toList();
-        emit projectsChanged();
-    });
-}
-
-void DbScoreAccountModel::loadNotifications()
-{
-    authorization()->apiGet("/api/notifications?page=1&pageSize=50").onResolve(this, [this](const muse::RetVal<QVariantMap>& result) {
-        if (!result.ret) {
-            return;
-        }
-
-        QVariantMap data = dataMap(result.val);
-        m_notificationsList = data.value("list").toList();
-        emit notificationsChanged();
     });
 }
 

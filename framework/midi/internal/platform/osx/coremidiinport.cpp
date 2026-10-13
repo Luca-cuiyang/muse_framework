@@ -186,13 +186,13 @@ void CoreMidiInPort::initCore()
         }
     };
 
-    result = MIDIClientCreate(CFSTR("MuseScore"), onCoreMidiNotificationReceived, this, &m_core->client);
+    result = MIDIClientCreate(CFSTR("DB Score"), onCoreMidiNotificationReceived, this, &m_core->client);
     IF_ASSERT_FAILED(result == noErr) {
         LOGE() << "failed create midi input client";
         return;
     }
 
-    CFStringRef portName = CFSTR("MuseScore MIDI input port");
+    CFStringRef portName = CFSTR("DB Score MIDI input port");
     if (__builtin_available(macOS 11.0, *)) {
         MIDIReceiveBlock receiveBlock = ^ (const MIDIEventList* eventList, void* /*srcConnRefCon*/) {
             const MIDIEventPacket* packet = eventList->packet;

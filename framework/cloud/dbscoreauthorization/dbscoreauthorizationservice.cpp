@@ -607,11 +607,12 @@ async::Promise<RetVal<QJsonObject> > DbScoreAuthorizationService::doRequest(cons
         // 防止请求挂起导致 UI 一直 busy
         QTimer* timeoutTimer = new QTimer(this);
         timeoutTimer->setSingleShot(true);
-        QObject::connect(timeoutTimer, &QTimer::timeout, this, [resolve, timedOut]() {
+        QObject::connect(timeoutTimer, &QTimer::timeout, this, [resolve, timedOut, timeoutTimer]() {
             if (*timedOut) {
                 return;
             }
             *timedOut = true;
+            timeoutTimer->deleteLater();
             resolve(RetVal<QJsonObject>::make_ret(Ret::Code::InternalError, std::string("请求超时，请检查网络后重试")));
         });
         timeoutTimer->start(15000);
