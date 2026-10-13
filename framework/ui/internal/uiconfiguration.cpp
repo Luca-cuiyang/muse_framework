@@ -90,7 +90,8 @@ void UiConfiguration::init()
 {
     m_config = ConfigReader::read(":/configs/ui.cfg");
 
-    settings()->setDefaultValue(UI_CURRENT_THEME_CODE_KEY, Val(DARK_THEME_CODE));
+    //! 默认与 MuseScore 一致：浅色主题
+    settings()->setDefaultValue(UI_CURRENT_THEME_CODE_KEY, Val(LIGHT_THEME_CODE));
     settings()->setDefaultValue(UI_CUSTOM_COLORS_KEY, Val(readLegacyCustomColors()));
     settings()->setDefaultValue(UI_FOLLOW_SYSTEM_THEME_KEY, Val(false));
     settings()->setDefaultValue(UI_FONT_FAMILY_KEY, Val(defaultFontFamily()));
@@ -421,7 +422,12 @@ QStringList UiConfiguration::possibleAccentColors() const
         "#D093FB",
         "#E39CEB",
         "#F298D3",
-        "#FF92B6"
+        "#FF92B6",
+        //! DB Score 主题色（皮肤）
+        "#EA580C",
+        "#0284C7",
+        "#7C3AED",
+        "#0D9488"
     };
 
     static const QStringList darkAccentColors {
@@ -442,7 +448,12 @@ QStringList UiConfiguration::possibleAccentColors() const
         "#B252F7",
         "#D830EA",
         "#E03DAA",
-        "#E9447B"
+        "#E9447B",
+        //! DB Score 主题色（皮肤）
+        "#FB923C",
+        "#38BDF8",
+        "#A78BFA",
+        "#2DD4BF"
     };
 
     if (isDarkMode()) {
