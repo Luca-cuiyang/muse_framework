@@ -275,7 +275,16 @@ bool AudioFileDecoder::decodeMp3(const std::vector<uint8_t>& bytes)
     const uint64_t read = drmp3_read_pcm_frames_f32(&mp3, frames, m_data.data());
     drmp3_uninit(&mp3);
 
-    return read == frames;
+    if (read == 0 || m_channels == 0 || m_sampleRate == 0) {
+        return false;
+    }
+
+    // VBR 等情况下估算帧数可能偏大，按实际读取量裁剪，避免误判失败
+    if (read != frames) {
+        m_data.resize(read * m_channels);
+    }
+
+    return true;
 }
 
 bool AudioFileDecoder::decodeFfmpeg(const std::vector<uint8_t>& bytes)
