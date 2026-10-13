@@ -129,7 +129,7 @@ QString DbScoreAuthorizationService::memberType() const
     }
 
     QString mt = m_phoneUser.value("memberType").toString();
-    if (mt != "free") {
+    if (!mt.isEmpty() && mt != "free") {
         return mt;
     }
 
@@ -147,7 +147,7 @@ QDateTime DbScoreAuthorizationService::expireAt() const
     }
 
     QString mt = m_phoneUser.value("memberType").toString();
-    if (mt != "free") {
+    if (!mt.isEmpty() && mt != "free") {
         QString value = m_phoneUser.value("expireAt").toString();
         if (value.isEmpty()) {
             value = m_phoneUser.value("memberExpireAt").toString();
@@ -344,6 +344,10 @@ async::Promise<Ret> DbScoreAuthorizationService::loginByPhone(const QString& pho
             savePhoneSession();
             setTrialStartNowIfNeeded();
 
+            LOGI() << "loginByPhone: token=" << m_phoneToken.left(8)
+                   << " loginUserHasMemberType=" << m_phoneUser.contains("memberType")
+                   << " loginUserHasTrial=" << m_phoneUser.contains("trialActive");
+
             refreshPhoneUser().onResolve(this, [this, resolve](const Ret&) {
                 notifyStateChanged();
                 // 只要拿到 token 即视为登录成功，用户信息拉取失败不影响登录
@@ -395,6 +399,8 @@ async::Promise<Ret> DbScoreAuthorizationService::registerByPhone(const QString& 
 async::Promise<Ret> DbScoreAuthorizationService::refresh()
 {
     return make_promise<Ret>([this](auto resolve, auto /*reject*/) {
+        LOGI() << "refresh() phoneLoggedIn=" << isPhoneLoggedIn();
+
         QUrl url(LICENSE_URL);
         QUrlQuery query;
         query.addQueryItem("deviceId", machineDeviceId());
@@ -555,6 +561,8 @@ network::RequestHeaders DbScoreAuthorizationService::authHeaders() const
 async::Promise<Ret> DbScoreAuthorizationService::refreshPhoneUser()
 {
     return make_promise<Ret>([this](auto resolve, auto /*reject*/) {
+        LOGI() << "refreshPhoneUser() called, token=" << m_phoneToken.left(8);
+
         network::RequestHeaders headers;
         headers.rawHeaders["Authorization"] = authTokenHeader().toUtf8();
 
@@ -570,6 +578,10 @@ async::Promise<Ret> DbScoreAuthorizationService::refreshPhoneUser()
                 savePhoneSession();
                 notifyStateChanged();
             }
+
+            LOGI() << "refreshPhoneUser: memberType=" << m_phoneUser.value("memberType").toString()
+                   << " trialActive=" << m_phoneUser.value("trialActive").toBool()
+                   << " trialDaysLeft=" << m_phoneUser.value("trialDaysLeft").toInt();
 
             resolve(make_ok());
         });
@@ -587,7 +599,7 @@ async::Promise<RetVal<QJsonObject> > DbScoreAuthorizationService::doRequest(cons
                                                                              const network::RequestHeaders& extraHeaders)
 {
     return make_promise<RetVal<QJsonObject> >([this, url, body, extraHeaders](auto resolve, auto /*reject*/) {
-        LOGD() << "doRequest url=" << url.toString();
+        LOGI() << "doRequest url=" << url.toString();
 
         auto received = std::make_shared<QBuffer>();
         auto timedOut = std::make_shared<bool>(false);
@@ -637,7 +649,7 @@ async::Promise<RetVal<QJsonObject> > DbScoreAuthorizationService::doRequest(cons
             timeoutTimer->stop();
             timeoutTimer->deleteLater();
 
-            LOGD() << "doRequest finished url=" << url.toString() << " ret=" << res.ret.success();
+            LOGI() << "doRequest finished url=" << url.toString() << " ret=" << res.ret.success();
 
             if (!res.ret) {
                 // 后端返回 4xx 时，尝试从响应体里取更友好的错误提示
@@ -665,23 +677,35 @@ async::Promise<RetVal<QJsonObject> > DbScoreAuthorizationService::doRequest(cons
                 return;
             }
 
+            // 后端各接口返回格式不统一：
+            // - 部分接口带 success:true/false（如 /api/dbscore/license、/api/software、/api/dbscore/activate）
+            // - /api/user 成功时没有 success 字段，失败时才带 error/code
+            // 因此：有 success 字段时以它为准；没有 success 字段时，仅当存在 error/message 才判定失败。
+            bool hasSuccessField = obj.contains("success");
             bool success = obj.value("success").toBool(false);
             QString code = obj.value("code").toString();
             QString message = obj.value("message").toString();
             QString error = obj.value("error").toString();
 
-            if (!success) {
-                if (message.isEmpty()) {
-                    message = code;
+            bool failed = false;
+            if (hasSuccessField) {
+                failed = !success;
+            } else if (!error.isEmpty() || !message.isEmpty()) {
+                failed = true;
+            }
+
+            if (failed) {
+                QString errMsg = message;
+                if (errMsg.isEmpty()) {
+                    errMsg = error;
                 }
-                if (message.isEmpty()) {
-                    message = error;
+                if (errMsg.isEmpty()) {
+                    errMsg = code;
                 }
-                resolve(RetVal<QJsonObject>::make_ret(Ret::Code::InternalError, message.toStdString()));
+                resolve(RetVal<QJsonObject>::make_ret(Ret::Code::InternalError, errMsg.toStdString()));
                 return;
             }
 
-            // 不同接口响应格式不同：有些把数据包在 data 里，有些直接放在顶层（如 auth/login 的 token）
             resolve(RetVal<QJsonObject>::make_ok(obj));
         });
 
@@ -764,8 +788,11 @@ void DbScoreAuthorizationService::setTrialStartNowIfNeeded()
 
 void DbScoreAuthorizationService::scheduleStartupRefresh()
 {
+    LOGI() << "scheduleStartupRefresh scheduled";
+
     // 等主事件循环启动后再发起首次授权同步
     QTimer::singleShot(3000, this, [this]() {
+        LOGI() << "scheduleStartupRefresh fired";
         (void)refresh();
     });
 }
@@ -895,7 +922,7 @@ IDbScoreAuthorizationService::LicenseState DbScoreAuthorizationService::computeS
 
     // 已登录：账号为正式会员
     QString memberType = m_phoneUser.value("memberType").toString();
-    if (memberType != "free") {
+    if (!memberType.isEmpty() && memberType != "free") {
         QString expire = m_phoneUser.value("expireAt").toString();
         if (expire.isEmpty()) {
             expire = m_phoneUser.value("memberExpireAt").toString();
