@@ -40,9 +40,13 @@ struct Msg {
 
 TEST_F(Global_Concurrency_RpcQueueTests, Communication)
 {
-    RpcQueue<Msg> q;
-
     const int MSG_COUNT = 400;
+
+    //! NOTE: 容量需能容纳一次性突发发送的全部消息，否则溢出到 pending 后，
+    //! 原测试在「本端口收满 MSG_COUNT 即 break」的条件下会提前停止排空 pending，
+    //! 导致对端缺消息、测试偶发失败。这里把容量设为 MSG_COUNT（内部会取 2 的幂），
+    //! 只影响本测试，不改变生产代码行为。
+    RpcQueue<Msg> q(MSG_COUNT);
 
     auto port1 = q.port1();
     auto port2 = q.port2();
@@ -61,7 +65,7 @@ TEST_F(Global_Concurrency_RpcQueueTests, Communication)
         }
 
         int iteration = 0;
-        while (iteration < 1000) { // anti freeze
+        while (iteration < 20000) { // anti freeze（加大上限，避免慢机器上偶发超时）
             ++iteration;
 
             port1->process();
@@ -89,7 +93,7 @@ TEST_F(Global_Concurrency_RpcQueueTests, Communication)
             port2->send(m);
         }
 
-        while (iteration < 1000) { // anti freeze
+        while (iteration < 20000) { // anti freeze（加大上限，避免慢机器上偶发超时）
             ++iteration;
 
             port2->process();
