@@ -2525,7 +2525,7 @@ exit_with_free:
 static int minimp4_fgets(MP4D_demux_t *mp4)
 {
     uint8_t c;
-    if (mp4->read_callback(mp4->read_pos, &c, 1, mp4->token))
+    if (mp4->read_callback(mp4->read_pos, &c, 1, mp4->token) != 1)
         return -1;
     mp4->read_pos++;
     return c;
