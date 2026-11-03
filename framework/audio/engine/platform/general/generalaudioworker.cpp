@@ -57,9 +57,11 @@ void GeneralAudioWorker::run(Callback callback)
         th_main(callback);
     });
 
+#ifdef MUSE_THREADS_SUPPORT
     if (!muse::setThreadPriority(*m_thread, ThreadPriority::High)) {
         LOGE() << "Unable to change audio thread priority";
     }
+#endif
 }
 
 void GeneralAudioWorker::setInterval(const msecs_t interval)
