@@ -71,7 +71,9 @@ public:
                     }
                 });
                 m_workers.push_back(std::move(worker));
+#ifdef MUSE_THREADS_SUPPORT
                 muse::setThreadPriority(*m_workers.back()->m_thread, ThreadPriority::High);
+#endif
             }
         } catch (...) {
             terminate();
