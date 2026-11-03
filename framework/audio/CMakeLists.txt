@@ -22,10 +22,6 @@ muse_create_module(muse_audio ALIAS muse::audio)
 
 include(GetPlatformInfo)
 
-if (OS_IS_WASM)
-    set(WEBENGINE_FACADE_MODE ON)
-endif()
-
 target_sources(muse_audio PRIVATE
     # Common public
     iaudiodriver.h
