@@ -26,6 +26,8 @@
 #include "fluidsynth/fluidsoundfontparser.h"
 
 #ifdef Q_OS_WASM
+#include <emscripten/val.h>
+
 #include "../../platform/web/networksfloader.h"
 #endif
 
@@ -35,6 +37,20 @@ using namespace muse;
 using namespace muse::audio;
 using namespace muse::audio::synth;
 using namespace muse::async;
+
+#ifdef Q_OS_WASM
+static void notifySoundFontsLoaded()
+{
+    emscripten::val callback = emscripten::val::module_property("onSoundFontsLoaded");
+    if (callback.typeOf().as<std::string>() == "function") {
+        callback();
+    }
+}
+#else
+static void notifySoundFontsLoaded()
+{
+}
+#endif
 
 bool SoundFontRepository::isSoundFontLoaded(const std::string& name) const
 {
@@ -73,6 +89,7 @@ void SoundFontRepository::addSoundFont(const SoundFontUri& uri)
     doAddSoundFont(uri, nullptr, [this]() {
         --m_loadingSoundFontCount;
         m_soundFontsChanged.notify();
+        notifySoundFontsLoaded();
     });
 }
 
@@ -191,6 +208,7 @@ void SoundFontRepository::loadSoundFonts(const std::vector<SoundFontUri>& uris)
             if (m_loadingSoundFontCount == 0) {
                 delete cache;
                 m_soundFontsChanged.notify();
+                notifySoundFontsLoaded();
                 LOGI() << "all added notify about sound fonts changed";
             }
         });
