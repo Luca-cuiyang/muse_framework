@@ -129,6 +129,7 @@ void SoundFontRepository::addSoundFontData(const SoundFontUri& uri, const ByteAr
     }
 
     m_soundFontsChanged.notify();
+    notifySoundFontsLoaded();
 }
 
 void SoundFontRepository::doAddSoundFont(const SoundFontUri& uri, const SoundFontsMap* cache, std::function<void()> onFinished)
@@ -164,25 +165,23 @@ void SoundFontRepository::doAddSoundFont(const SoundFontUri& uri, const SoundFon
         parseAndAdd(uri, path);
     } else {
 #ifdef Q_OS_WASM
-        const RetVal<ByteArray> data = NetworkSFLoader::load(uri);
-        if (data.ret) {
-            const io::path_t fileName = fileNameFromUri(uri);
+        auto promise = NetworkSFLoader::load(uri);
+        promise.onResolve(this, [uri, parseAndAdd](const RetVal<ByteArray>& data) {
+            if (data.ret) {
+                const io::path_t fileName = fileNameFromUri(uri);
 
-            {
-                FILE* file = fopen(fileName.c_str(), "wb");
-                IF_ASSERT_FAILED(file) {
-                    return;
-                }
-                const size_t wsize = fwrite(data.val.constChar(), sizeof(char), data.val.size(), file);
-                IF_ASSERT_FAILED(wsize == data.val.size()) {
+                {
+                    FILE* file = fopen(fileName.c_str(), "wb");
+                    size_t wsize = fwrite(data.val.constChar(), sizeof(char), data.val.size(), file);
+                    IF_ASSERT_FAILED(wsize == data.val.size()) {
+                        return;
+                    }
                     fclose(file);
-                    return;
                 }
-                fclose(file);
-            }
 
-            parseAndAdd(uri, fileName);
-        }
+                parseAndAdd(uri, fileName);
+            }
+        });
 #else
         NOT_SUPPORTED;
         if (onFinished) {

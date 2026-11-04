@@ -24,12 +24,13 @@
 #include "global/types/retval.h"
 #include "global/types/uri.h"
 #include "global/types/bytearray.h"
+#include "global/async/promise.h"
 
 namespace muse::audio::synth {
 class NetworkSFLoader
 {
 public:
 
-    static RetVal<ByteArray> load(const Uri& uri);
+    static async::Promise<RetVal<ByteArray> > load(const Uri& uri);
 };
 }
