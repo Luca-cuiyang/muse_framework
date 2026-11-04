@@ -27,6 +27,10 @@
 #include "global/platform/win/waitabletimer.h"
 #endif
 
+#ifdef Q_OS_WASM
+#include "driver/platform/web/webaudiochannel.h"
+#endif
+
 #include "audio/common/audioutils.h"
 #include "audio/common/rpc/rpcpacker.h"
 #include "audio/common/audioerrors.h"
@@ -76,6 +80,13 @@ void EngineController::onStartRunning()
     m_rpcController = std::make_shared<EngineRpcController>(aengine);
     m_rpcController->init();
 
+#ifdef Q_OS_WASM
+    m_webAudioChannel = std::make_shared<WebAudioChannel>();
+    m_webAudioChannel->open([this](float* stream, size_t samples) {
+        process(stream, static_cast<unsigned>(samples / 2));
+    });
+#endif
+
     //! NOTE We inform that the engine is running and can receive messages
     //! (it has not yet been initialized)
     m_rpcChannel->send(rpc::make_notification(rpc::GLOBAL_CTX_ID, rpc::MsgCode::EngineRunning));
@@ -100,6 +111,13 @@ void EngineController::init(const OutputSpec& outputSpec, const AudioEngineConfi
 void EngineController::deinit()
 {
     //! AUDIO THREAD
+#ifdef Q_OS_WASM
+    if (m_webAudioChannel) {
+        m_webAudioChannel->close();
+        m_webAudioChannel.reset();
+    }
+#endif
+
     m_rpcController->deinit();
     audioEngine()->deinit();
 }
