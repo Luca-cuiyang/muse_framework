@@ -28,6 +28,7 @@
 
 using namespace muse::audio;
 using namespace muse::audio::engine;
+using namespace muse::async;
 
 SoundFileNode::SoundFileNode(TrackId /*trackId*/, muse::io::IODevice* device, const SoundTrackData& data)
     : m_data(data)
