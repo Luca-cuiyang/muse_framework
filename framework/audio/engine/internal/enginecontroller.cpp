@@ -35,6 +35,8 @@
 #include "audio/common/rpc/rpcpacker.h"
 #include "audio/common/audioerrors.h"
 
+#include "global/async/processevents.h"
+
 #include "enginerpccontroller.h"
 #include "audioengine.h"
 
@@ -83,6 +85,7 @@ void EngineController::onStartRunning()
 #ifdef Q_OS_WASM
     m_webAudioChannel = std::make_shared<worker::WebAudioChannel>();
     m_webAudioChannel->open([this](float* stream, size_t samples) {
+        async::processMessages();
         process(stream, static_cast<unsigned>(samples / 2));
     });
 #endif
