@@ -81,7 +81,7 @@ void EngineController::onStartRunning()
     m_rpcController->init();
 
 #ifdef Q_OS_WASM
-    m_webAudioChannel = std::make_shared<WebAudioChannel>();
+    m_webAudioChannel = std::make_shared<worker::WebAudioChannel>();
     m_webAudioChannel->open([this](float* stream, size_t samples) {
         process(stream, static_cast<unsigned>(samples / 2));
     });

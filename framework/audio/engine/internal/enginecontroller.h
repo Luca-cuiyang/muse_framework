@@ -34,8 +34,11 @@ namespace muse::audio::rpc {
 class IRpcChannel;
 }
 
-namespace muse::audio::engine {
+namespace muse::audio::worker {
 class WebAudioChannel;
+}
+
+namespace muse::audio::engine {
 class EngineRpcController;
 
 class EngineController : public IEngineController
@@ -60,6 +63,6 @@ public:
 private:
     std::shared_ptr<rpc::IRpcChannel> m_rpcChannel;
     std::shared_ptr<EngineRpcController> m_rpcController;
-    std::shared_ptr<WebAudioChannel> m_webAudioChannel;
+    std::shared_ptr<worker::WebAudioChannel> m_webAudioChannel;
 };
 }
