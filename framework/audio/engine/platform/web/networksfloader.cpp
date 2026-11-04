@@ -29,8 +29,8 @@ using namespace muse::audio::synth;
 RetVal<ByteArray> NetworkSFLoader::load(const Uri& uri)
 {
     emscripten::val request = emscripten::val::global("XMLHttpRequest").new_();
-    request.call<void>("open", "GET", uri.toString(), false);
-    request.set("responseType", "arraybuffer");
+    request.call<void>("open", std::string("GET"), uri.toString(), false);
+    request.set("responseType", std::string("arraybuffer"));
     request.call<void>("send");
 
     const int status = request["status"].as<int>();
