@@ -314,6 +314,13 @@ void EngineRpcController::init()
                 return make_response(msg, RpcPacker::pack(RetType::make_ret(Err::InvalidRpcData)));
             }
 
+            const std::vector<uint8_t>& bytes = data.constVData();
+            LOGI() << "AddTrackWithRawData: " << trackName << ", size: " << bytes.size()
+                   << ", head: " << (bytes.size() > 0 ? int(bytes[0]) : -1)
+                   << (bytes.size() > 1 ? int(bytes[1]) : -1)
+                   << (bytes.size() > 2 ? int(bytes[2]) : -1)
+                   << (bytes.size() > 3 ? int(bytes[3]) : -1);
+
             if (auto actx = audioContext(msg.ctxId)) {
                 io::Buffer buffer(std::move(data));
                 buffer.open(io::IODevice::ReadOnly);
