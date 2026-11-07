@@ -308,13 +308,13 @@ void EngineRpcController::init()
             using RetType = RetVal2<TrackId, TrackParams>;
 
             TrackName trackName;
-            ByteArray data;
+            std::vector<uint8_t> data;
             TrackParams params;
             IF_ASSERT_FAILED(RpcPacker::unpack(msg.data, trackName, data, params)) {
                 return make_response(msg, RpcPacker::pack(RetType::make_ret(Err::InvalidRpcData)));
             }
 
-            const std::vector<uint8_t>& bytes = data.constVData();
+            const std::vector<uint8_t>& bytes = data;
             LOGI() << "AddTrackWithRawData: " << trackName << ", size: " << bytes.size()
                    << ", head: " << (bytes.size() > 0 ? int(bytes[0]) : -1)
                    << (bytes.size() > 1 ? int(bytes[1]) : -1)
@@ -322,7 +322,7 @@ void EngineRpcController::init()
                    << (bytes.size() > 3 ? int(bytes[3]) : -1);
 
             if (auto actx = audioContext(msg.ctxId)) {
-                io::Buffer buffer(std::move(data));
+                io::Buffer buffer(bytes.data(), bytes.size());
                 buffer.open(io::IODevice::ReadOnly);
                 RetType ret = actx->addTrack(trackName, &buffer, params);
                 buffer.close();

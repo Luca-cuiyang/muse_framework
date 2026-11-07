@@ -324,7 +324,7 @@ async::Promise<TrackId, TrackParams> Playback::addTrack(const TrackName& trackNa
         }
 
         Msg msg = rpc::make_request(ctxId(), MsgCode::AddTrackWithRawData,
-                                    RpcPacker::pack(trackName, data, params));
+                                    RpcPacker::pack(trackName, data.constVData(), params));
         channel()->send(msg, [resolve, reject](const Msg& res) {
             ONLY_AUDIO_MAIN_THREAD;
             RetVal2<TrackId, TrackParams> ret;
