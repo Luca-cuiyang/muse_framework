@@ -326,6 +326,15 @@ void EngineRpcController::init()
                 buffer.open(io::IODevice::ReadOnly);
                 RetType ret = actx->addTrack(trackName, &buffer, params);
                 buffer.close();
+                if (!ret.ret) {
+                    std::string text = "raw web audio could not be decoded, size: "
+                                       + std::to_string(bytes.size()) + ", head: "
+                                       + std::to_string(bytes.size() > 0 ? int(bytes[0]) : -1) + " "
+                                       + std::to_string(bytes.size() > 1 ? int(bytes[1]) : -1) + " "
+                                       + std::to_string(bytes.size() > 2 ? int(bytes[2]) : -1) + " "
+                                       + std::to_string(bytes.size() > 3 ? int(bytes[3]) : -1);
+                    ret.ret = Ret(ret.ret.code(), text);
+                }
                 return make_response(msg, RpcPacker::pack(ret));
             } else {
                 return make_response(msg, RpcPacker::pack(RetType::make_ret(Err::InvalidContext)));
