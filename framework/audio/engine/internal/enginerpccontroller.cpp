@@ -308,13 +308,18 @@ void EngineRpcController::init()
             using RetType = RetVal2<TrackId, TrackParams>;
 
             TrackName trackName;
-            std::vector<uint8_t> data;
+            uint64_t dataSize = 0;
             TrackParams params;
-            IF_ASSERT_FAILED(RpcPacker::unpack(msg.data, trackName, data, params)) {
+            muse::msgpack::Cursor cursor(msg.data.constData(), msg.data.size());
+            IF_ASSERT_FAILED(muse::msgpack::UnPacker::unpack(cursor, trackName, dataSize, params)) {
                 return make_response(msg, RpcPacker::pack(RetType::make_ret(Err::InvalidRpcData)));
             }
 
-            const std::vector<uint8_t>& bytes = data;
+            if (cursor.remain() < dataSize) {
+                return make_response(msg, RpcPacker::pack(RetType::make_ret(Err::InvalidRpcData)));
+            }
+
+            std::vector<uint8_t> bytes(cursor.current, cursor.current + dataSize);
             LOGI() << "AddTrackWithRawData: " << trackName << ", size: " << bytes.size()
                    << ", head: " << (bytes.size() > 0 ? int(bytes[0]) : -1)
                    << (bytes.size() > 1 ? int(bytes[1]) : -1)
