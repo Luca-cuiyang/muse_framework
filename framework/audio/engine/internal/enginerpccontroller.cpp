@@ -25,6 +25,8 @@
 #include "audio/common/rpc/rpcpacker.h"
 #include "audio/common/audioerrors.h"
 
+#include "io/buffer.h"
+
 #include "log.h"
 
 //#define CHECK_METHODS_DURATION
@@ -294,6 +296,29 @@ void EngineRpcController::init()
 
             if (auto actx = audioContext(msg.ctxId)) {
                 RetType ret = actx->addTrack(trackName, device, params);
+                return make_response(msg, RpcPacker::pack(ret));
+            } else {
+                return make_response(msg, RpcPacker::pack(RetType::make_ret(Err::InvalidContext)));
+            }
+        });
+
+        onLongRequest(ctxId, MsgCode::AddTrackWithRawData, [this](const Msg& msg) {
+            ONLY_AUDIO_RPC_THREAD;
+
+            using RetType = RetVal2<TrackId, TrackParams>;
+
+            TrackName trackName;
+            ByteArray data;
+            TrackParams params;
+            IF_ASSERT_FAILED(RpcPacker::unpack(msg.data, trackName, data, params)) {
+                return make_response(msg, RpcPacker::pack(RetType::make_ret(Err::InvalidRpcData)));
+            }
+
+            if (auto actx = audioContext(msg.ctxId)) {
+                io::Buffer buffer(std::move(data));
+                buffer.open(io::IODevice::ReadOnly);
+                RetType ret = actx->addTrack(trackName, &buffer, params);
+                buffer.close();
                 return make_response(msg, RpcPacker::pack(ret));
             } else {
                 return make_response(msg, RpcPacker::pack(RetType::make_ret(Err::InvalidContext)));

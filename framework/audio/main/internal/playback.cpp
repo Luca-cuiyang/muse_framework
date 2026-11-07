@@ -314,9 +314,30 @@ async::Promise<TrackId, TrackParams> Playback::addTrack(const TrackName& trackNa
                                                         const TrackParams& params)
 {
 #ifdef MUSE_CONFIGURATION_IS_WEB
-    NOT_SUPPORTED;
-    return async::make_promise<TrackId, TrackParams>([](auto /*resolve*/, auto reject) {
-        doReject(MsgCode::AddTrackWithIODevice, reject, muse::make_ret(Ret::Code::NotSupported));
+    return async::make_promise<TrackId, TrackParams>([this, trackName, playbackData, params](auto resolve, auto reject) {
+        ONLY_AUDIO_MAIN_THREAD;
+
+        ByteArray data = playbackData ? playbackData->readAll() : ByteArray();
+        if (data.empty()) {
+            doReject(MsgCode::AddTrackWithRawData, reject, audio::make_ret(Err::InvalidAudioFilePath));
+            return Promise<TrackId, TrackParams>::dummy_result();
+        }
+
+        Msg msg = rpc::make_request(ctxId(), MsgCode::AddTrackWithRawData,
+                                    RpcPacker::pack(trackName, data, params));
+        channel()->send(msg, [resolve, reject](const Msg& res) {
+            ONLY_AUDIO_MAIN_THREAD;
+            RetVal2<TrackId, TrackParams> ret;
+            IF_ASSERT_FAILED(RpcPacker::unpack(res.data, ret)) {
+                doReject(MsgCode::AddTrackWithRawData, reject, audio::make_ret(Err::InvalidRpcData));
+                return;
+            }
+            if (ret.ret) {
+                (void)resolve(ret.val1, ret.val2);
+            } else {
+                doReject(MsgCode::AddTrackWithRawData, reject, ret.ret);
+            }
+        });
         return Promise<TrackId, TrackParams>::dummy_result();
     });
 #else
