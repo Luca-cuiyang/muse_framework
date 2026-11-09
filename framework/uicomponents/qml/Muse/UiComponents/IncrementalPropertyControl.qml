@@ -63,16 +63,6 @@ Item {
     signal accepted()
     signal escaped()
 
-    function inputTextForCommit(newTextValue) {
-        const text = String(newTextValue)
-        if (root.replaceOnInput
-                && text.length > root.textBeforeEdit.length
-                && text.startsWith(root.textBeforeEdit)) {
-            return text.slice(root.textBeforeEdit.length)
-        }
-        return text
-    }
-
     implicitHeight: 30
     implicitWidth: parent.width
 
@@ -211,6 +201,16 @@ Item {
                     root.textBeforeEdit = textInputField.inputField.text
                 }
             }
+
+            function onReleased(mouse) {
+                if (!root.replaceOnInput || !textInputField.activeFocus) {
+                    return
+                }
+                Qt.callLater(function() {
+                    textInputField.inputField.text = ""
+                    textInputField.inputField.forceActiveFocus()
+                })
+            }
         }
 
         ValueAdjustControl {
@@ -281,8 +281,7 @@ Item {
                 return
             }
 
-            const inputText = root.inputTextForCommit(newTextValue)
-            var newVal = Number.fromLocaleString(Qt.locale(), inputText)
+            var newVal = Number.fromLocaleString(Qt.locale(), newTextValue)
 
             if (isNaN(newVal)) {
                 newVal = 0
@@ -297,8 +296,7 @@ Item {
                 return
             }
 
-            const inputText = root.inputTextForCommit(newTextValue)
-            var newVal = Number.fromLocaleString(Qt.locale(), inputText)
+            var newVal = Number.fromLocaleString(Qt.locale(), newTextValue)
 
             if (isNaN(newVal)) {
                 newVal = 0
@@ -312,6 +310,9 @@ Item {
         }
 
         onEscaped: {
+            if (root.replaceOnInput) {
+                textInputField.inputField.text = root.textBeforeEdit
+            }
             root.escaped()
         }
     }
