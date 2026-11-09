@@ -194,7 +194,8 @@ Item {
 
         mouseArea.onReleased: function(mouse) {
             if (root.selectAllOnFocus && textInputField.activeFocus) {
-                textInputField.selectAll()
+                // Select after the click has finished updating the text cursor.
+                Qt.callLater(textInputField.selectAll)
             }
         }
 
