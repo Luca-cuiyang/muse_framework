@@ -42,6 +42,7 @@ Item {
     property real minValue: -999
     property alias validator: textInputField.validator
     property bool wrap: false
+    property bool selectAllOnFocus: false
 
     property alias measureUnitsSymbol: textInputField.measureUnitsSymbol
     property alias hint: textInputField.hint
@@ -190,6 +191,12 @@ Item {
         validator: !prv.isCustom ? (root.decimals > 0 ? doubleInputValidator : intInputValidator) : null
 
         containsMouse: mouseArea.containsMouse || valueAdjustControl.containsMouse
+
+        mouseArea.onReleased: function(mouse) {
+            if (root.selectAllOnFocus && textInputField.activeFocus) {
+                textInputField.selectAll()
+            }
+        }
 
         ValueAdjustControl {
             id: valueAdjustControl
