@@ -42,8 +42,6 @@ Item {
     property real minValue: -999
     property alias validator: textInputField.validator
     property bool wrap: false
-    property bool replaceOnInput: false
-    property string textBeforeEdit: ""
 
     property alias measureUnitsSymbol: textInputField.measureUnitsSymbol
     property alias hint: textInputField.hint
@@ -70,6 +68,14 @@ Item {
 
     function forceActiveFocus() {
         textInputField.forceActiveFocus()
+    }
+
+    function beginReplacement() {
+        textInputField.forceActiveFocus()
+        Qt.callLater(function() {
+            textInputField.inputField.text = ""
+            textInputField.inputField.forceActiveFocus()
+        })
     }
 
     function increment() {
@@ -192,26 +198,6 @@ Item {
         validator: !prv.isCustom ? (root.decimals > 0 ? doubleInputValidator : intInputValidator) : null
 
         containsMouse: mouseArea.containsMouse || valueAdjustControl.containsMouse
-
-        Connections {
-            target: textInputField.mouseArea
-
-            function onPressed(mouse) {
-                if (root.replaceOnInput) {
-                    root.textBeforeEdit = textInputField.inputField.text
-                }
-            }
-
-            function onReleased(mouse) {
-                if (!root.replaceOnInput || !textInputField.activeFocus) {
-                    return
-                }
-                Qt.callLater(function() {
-                    textInputField.inputField.text = ""
-                    textInputField.inputField.forceActiveFocus()
-                })
-            }
-        }
 
         ValueAdjustControl {
             id: valueAdjustControl
