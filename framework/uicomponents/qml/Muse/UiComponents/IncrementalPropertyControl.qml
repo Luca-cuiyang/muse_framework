@@ -42,7 +42,8 @@ Item {
     property real minValue: -999
     property alias validator: textInputField.validator
     property bool wrap: false
-    property bool selectAllOnFocus: false
+    property bool replaceOnInput: false
+    property string textBeforeEdit: ""
 
     property alias measureUnitsSymbol: textInputField.measureUnitsSymbol
     property alias hint: textInputField.hint
@@ -61,6 +62,16 @@ Item {
     signal valueEditingFinished(var newValue)
     signal accepted()
     signal escaped()
+
+    function inputTextForCommit(newTextValue) {
+        const text = String(newTextValue)
+        if (root.replaceOnInput
+                && text.length > root.textBeforeEdit.length
+                && text.startsWith(root.textBeforeEdit)) {
+            return text.slice(root.textBeforeEdit.length)
+        }
+        return text
+    }
 
     implicitHeight: 30
     implicitWidth: parent.width
@@ -192,10 +203,13 @@ Item {
 
         containsMouse: mouseArea.containsMouse || valueAdjustControl.containsMouse
 
-        mouseArea.onReleased: function(mouse) {
-            if (root.selectAllOnFocus && textInputField.activeFocus) {
-                // Select after the click has finished updating the text cursor.
-                Qt.callLater(textInputField.selectAll)
+        Connections {
+            target: textInputField.mouseArea
+
+            function onPressed(mouse) {
+                if (root.replaceOnInput) {
+                    root.textBeforeEdit = textInputField.inputField.text
+                }
             }
         }
 
@@ -267,7 +281,8 @@ Item {
                 return
             }
 
-            var newVal = Number.fromLocaleString(Qt.locale(), newTextValue)
+            const inputText = root.inputTextForCommit(newTextValue)
+            var newVal = Number.fromLocaleString(Qt.locale(), inputText)
 
             if (isNaN(newVal)) {
                 newVal = 0
@@ -282,7 +297,8 @@ Item {
                 return
             }
 
-            var newVal = Number.fromLocaleString(Qt.locale(), newTextValue)
+            const inputText = root.inputTextForCommit(newTextValue)
+            var newVal = Number.fromLocaleString(Qt.locale(), inputText)
 
             if (isNaN(newVal)) {
                 newVal = 0
