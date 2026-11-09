@@ -42,6 +42,7 @@ Item {
     property real minValue: -999
     property alias validator: textInputField.validator
     property bool wrap: false
+    property alias clearOnFocus: textInputField.clearOnFocus
 
     property alias measureUnitsSymbol: textInputField.measureUnitsSymbol
     property alias hint: textInputField.hint
@@ -68,12 +69,6 @@ Item {
 
     function forceActiveFocus() {
         textInputField.forceActiveFocus()
-    }
-
-    function beginReplacement() {
-        Qt.callLater(function() {
-            textInputField.inputField.text = ""
-        })
     }
 
     function increment() {

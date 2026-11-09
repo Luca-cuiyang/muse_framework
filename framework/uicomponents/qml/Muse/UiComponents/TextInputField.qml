@@ -36,6 +36,7 @@ FocusScope {
     property alias validator: valueInput.validator
     property alias maximumLength: valueInput.maximumLength
     property alias measureUnitsSymbol: measureUnitsLabel.text
+    property bool clearOnFocus: false
 
     property alias hint: valueInput.placeholderText
     property alias hintIcon: hintIcon.iconCode
@@ -239,6 +240,13 @@ FocusScope {
                 if (activeFocus) {
                     navCtrl.requestActive()
                     selectAll()
+                    if (root.clearOnFocus) {
+                        Qt.callLater(function() {
+                            if (valueInput.activeFocus) {
+                                valueInput.text = ""
+                            }
+                        })
+                    }
                 } else {
                     deselect()
                 }
