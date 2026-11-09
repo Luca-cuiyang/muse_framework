@@ -71,10 +71,8 @@ Item {
     }
 
     function beginReplacement() {
-        textInputField.forceActiveFocus()
         Qt.callLater(function() {
             textInputField.inputField.text = ""
-            textInputField.inputField.forceActiveFocus()
         })
     }
 
