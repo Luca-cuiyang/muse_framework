@@ -165,12 +165,15 @@ Ret Workspace::load()
     }
 
     // 5.0.5 was built with KDDockWidgets v2 and saved a dock layout that 5.0.6+
-    // (v1) cannot restore; loading it leaves the main window blank. Reset such a
-    // user workspace to the builtin layout so the app opens normally.
+    // (v1) cannot restore; loading it leaves the main window blank. 5.0.6 could
+    // rewrite such a file while still keeping the incompatible layout data, so
+    // both versions are treated as one-time resets on upgrade.
     const io::path_t builtinPath = builtinWorkspacePath();
+    const std::string savedVersion = m_file->meta("app_version").toString();
     if (!builtinPath.empty() && filePath() != builtinPath
-        && m_file->meta("app_version").toString() == "5.0.5") {
-        LOGE() << "workspace was saved by incompatible 5.0.5 build, resetting to builtin: " << filePath();
+        && (savedVersion == "5.0.5" || savedVersion == "5.0.6")) {
+        LOGE() << "workspace was saved by a build with an incompatible dock layout, resetting to builtin: "
+               << filePath();
         fileSystem()->remove(filePath());
         m_file = std::make_shared<WorkspaceFile>(builtinPath);
         return m_file->load();
