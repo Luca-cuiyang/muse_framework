@@ -73,6 +73,10 @@ bool AudioFileDecoder::open(muse::io::IODevice* device)
         return false;
     }
 
+    // 导入音频、点击伴奏轨、打开含伴奏的乐谱都会走到这里。
+    // 任何解码器在扩容/解析损坏文件时抛出的异常都必须降级为“解码失败”，
+    // 否则会直接终止进程，表现为点击音频后闪退。
+    try {
     device->seek(0);
     uint8_t head[12];
     const size_t headSize = device->read(head, sizeof(head));
@@ -125,6 +129,19 @@ bool AudioFileDecoder::open(muse::io::IODevice* device)
            << ", first bytes: " << int(head[0]) << " " << int(head[1]) << " " << int(head[2])
            << " " << int(head[3]) << " " << int(head[4]) << " " << int(head[5]);
     return false;
+    } catch (const std::exception& e) {
+        LOGE() << "audio decode failed: " << e.what();
+        m_data.clear();
+        m_channels = 0;
+        m_sampleRate = 0;
+        return false;
+    } catch (...) {
+        LOGE() << "audio decode failed: unknown error";
+        m_data.clear();
+        m_channels = 0;
+        m_sampleRate = 0;
+        return false;
+    }
 }
 
 bool AudioFileDecoder::decodeWav(muse::io::IODevice* device)
