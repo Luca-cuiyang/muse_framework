@@ -85,6 +85,16 @@ void SoundFileNode::doSelfProcess(float* buffer, samples_t samplesPerChannel)
     const unsigned int inputChannels = m_decoder.channels();
     const double sourceRate = m_decoder.sampleRate();
     const double outputRate = m_outputSpec.sampleRate;
+
+    // 防御：无效解码结果不能进入混音，否则下面 c % inputChannels 会除零崩溃。
+    if (outputChannels == 0 || inputChannels == 0 || !std::isfinite(sourceRate) || !std::isfinite(outputRate)
+        || sourceRate <= 0.0 || outputRate <= 0.0) {
+        if (buffer && samplesPerChannel > 0 && outputChannels > 0) {
+            std::fill(buffer, buffer + size_t(samplesPerChannel) * outputChannels, 0.f);
+        }
+        return;
+    }
+
     const double step = sourceRate / outputRate;
     const uint64_t totalFrames = m_decoder.frames();
     const std::vector<float>& data = m_decoder.data();
@@ -135,8 +145,14 @@ void SoundFileNode::seek(const TimePosition& position, const bool /*flushSound*/
     }
 
     const double scoreTime = position.time().raw();
+    const double sampleRate = m_decoder.sampleRate();
+    if (!std::isfinite(scoreTime) || !std::isfinite(sampleRate) || sampleRate <= 0.0) {
+        m_positionFrame = 0.0;
+        return;
+    }
+
     const double sourceTime = scoreTime - m_data.startOffset.raw();
-    m_positionFrame = std::min(sourceTime * m_decoder.sampleRate(), m_clipEndFrame);
+    m_positionFrame = std::min(sourceTime * sampleRate, m_clipEndFrame);
 }
 
 void SoundFileNode::flush()

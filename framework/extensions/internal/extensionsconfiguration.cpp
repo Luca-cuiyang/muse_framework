@@ -154,6 +154,10 @@ std::map<muse::Uri, ExtensionConfig> ExtensionsConfiguration::extensionConfigs()
     }
     //! NOTE Load old plugins config
     else {
+        if (!io::File::exists(oldPluginsConfigPath)) {
+            return {};
+        }
+
         ByteArray data;
 
         {

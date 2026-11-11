@@ -25,6 +25,7 @@
 #include <vector>
 
 #include <windows.h>
+#include <shlobj.h>
 
 namespace muse::update::win {
 inline std::wstring utf8ToWide(const std::string& str)
@@ -62,9 +63,9 @@ inline std::string wideToUtf8(const std::wstring& str)
 inline std::wstring programDataPath()
 {
     wchar_t buffer[MAX_PATH] = { 0 };
-    const DWORD size = ::GetEnvironmentVariableW(L"ProgramData", buffer, MAX_PATH);
-    if (size > 0 && size < MAX_PATH) {
-        return std::wstring(buffer, size);
+    if (SUCCEEDED(::SHGetFolderPathW(nullptr, CSIDL_COMMON_APPDATA, nullptr,
+                                     SHGFP_TYPE_CURRENT, buffer))) {
+        return std::wstring(buffer);
     }
 
     return L"C:\\ProgramData";

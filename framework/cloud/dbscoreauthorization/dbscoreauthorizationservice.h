@@ -2,7 +2,7 @@
  * SPDX-License-Identifier: GPL-3.0-only
  * MuseScore-CLA-applies
  *
- * DB Score - 授权服务实现（激活码模式）
+ * DB Score - DB后台端账号服务
  */
 
 #ifndef MUSE_CLOUD_DBSCOREAUTHORIZATIONSERVICE_H
@@ -37,33 +37,35 @@ public:
 
     LicenseState state() const override;
     bool hasProAccess() const override;
+    bool isPermanentMember() const override;
 
-    QString licenseCode() const override;
-    QString memberType() const override;
     QDateTime expireAt() const override;
-    QString deviceId() const override;
 
     double trialHoursRemaining() const override;
-    bool isTrialActive() const override;
 
     bool isPhoneLoggedIn() const override;
+    QString phoneNumber() const override;
     QString phoneMasked() const override;
     QString phoneNickname() const override;
     QString avatarUrl() const override;
+    QString accountCreatedAt() const override;
+    QString membershipPlan() const override;
+    QString membershipKind() const override;
+    QString membershipStartsAt() const override;
+    QString membershipSource() const override;
+    int renewalPriceFen() const override;
+    QString renewalPlanName() const override;
+    QString lastOtpDebugCode() const override;
 
     QString apiBaseUrl() const override;
-    QString purchasePageUrl() const override;
     QString currentVersion() const override;
 
-    async::Promise<muse::Ret> activate(const QString& code, const QString& deviceName) override;
     async::Promise<muse::Ret> sendCode(const QString& phone) override;
     async::Promise<muse::Ret> loginByPhone(const QString& phone, const QString& code) override;
-    async::Promise<muse::Ret> registerByPhone(const QString& phone, const QString& code, const QString& nickname) override;
+    async::Promise<muse::Ret> updateProfile(const QVariantMap& data) override;
     async::Promise<muse::Ret> refresh() override;
-    async::Promise<muse::RetVal<QVariantMap> > checkForUpdate() override;
-    async::Promise<muse::RetVal<QVariantMap> > apiGet(const QString& path) override;
-    async::Promise<muse::RetVal<QVariantMap> > apiPost(const QString& path, const QVariantMap& body) override;
-    void clearLicense() override;
+    async::Promise<muse::RetVal<QVariantMap> > accountGet(const QString& path) override;
+    async::Promise<muse::RetVal<QVariantMap> > accountPost(const QString& path, const QVariantMap& body) override;
     void logout() override;
 
     async::Notification stateChanged() const override;
@@ -75,25 +77,15 @@ private:
     QString machineDeviceId() const;
     QString defaultDeviceName() const;
     QString appVersion() const;
-    QString updatePlatformKey() const;
+    QString platformCode() const;
     QString authTokenHeader() const;
     network::RequestHeaders authHeaders() const;
 
-    void setTrialStartNowIfNeeded();
-    qint64 trialStartMs() const;
-
     void scheduleStartupRefresh();
-    void scheduleHeartbeat();
-    void scheduleTrialWatch();
-    void applyOfflineGraceWindow();
-
-    QJsonObject loadLicense() const;
-    void saveLicense(const QJsonObject& license) const;
-    void clearStoredLicense();
     QJsonObject loadPhoneUser() const;
     void savePhoneSession();
     async::Promise<muse::Ret> refreshPhoneUser();
-    bool isLicenseActive() const;
+    bool isTrialActive() const;
 
     LicenseState computeState() const;
     void notifyStateChanged();
@@ -106,11 +98,10 @@ private:
     mutable QString m_deviceId;
     mutable bool m_deviceIdLoaded = false;
     mutable async::Notification m_stateChanged;
-    QTimer m_heartbeatTimer;
-    QTimer m_trialWatchTimer;
-    bool m_trialWasActive = false;
+    QTimer m_refreshTimer;
     bool m_phoneLoggedIn = false;
     QString m_phoneToken;
+    QString m_otpDebugCode;
     QJsonObject m_phoneUser;
     network::INetworkManagerPtr m_networkManager;
 };

@@ -2,23 +2,55 @@
  * SPDX-License-Identifier: GPL-3.0-only
  * MuseScore-CLA-applies
  *
- * DB Score - 账户中心模型（激活码授权）
+ * DB Score - 账号模型
  */
 
 #include "dbscoreaccountmodel.h"
 
-#include <QDesktopServices>
+#include <QBuffer>
+#include <QFileInfo>
 #include <QGuiApplication>
 #include <QClipboard>
+#include <QImageReader>
+#include <QImageWriter>
 #include <QUrl>
 
 #include "log.h"
 
 using namespace muse::cloud;
 
+static QString displayDate(const QString& isoDate)
+{
+    if (isoDate.isEmpty()) {
+        return QStringLiteral("—");
+    }
+
+    QDateTime date = QDateTime::fromString(isoDate, Qt::ISODate);
+    return date.isValid() ? date.toLocalTime().toString(QStringLiteral("yyyy-MM-dd"))
+                          : QStringLiteral("—");
+}
+
 DbScoreAccountModel::DbScoreAccountModel(QObject* parent)
     : QObject(parent)
 {
+    m_paymentPollTimer.setInterval(3000);
+    m_paymentPollTimer.setSingleShot(false);
+    QObject::connect(&m_paymentPollTimer, &QTimer::timeout, this, [this]() {
+        if (!authorization()->isPhoneLoggedIn() || m_pendingOrderNumber.isEmpty()) {
+            stopPaymentPolling();
+            return;
+        }
+
+        if (m_paymentPollCount <= 0) {
+            setPaymentStatus(QStringLiteral("支付二维码已等待较长时间，请确认支付后点击“检查支付状态”。"));
+            stopPaymentPolling();
+            return;
+        }
+
+        --m_paymentPollCount;
+        checkPaymentNow();
+    });
+
     authorization()->stateChanged().onNotify(this, [this]() {
         emit modelChanged();
     });
@@ -29,9 +61,12 @@ bool DbScoreAccountModel::hasProAccess() const
     return authorization()->hasProAccess();
 }
 
-int DbScoreAccountModel::licenseState() const
+bool DbScoreAccountModel::paidMembershipActive() const
 {
-    return static_cast<int>(authorization()->state());
+    const QString kind = authorization()->membershipKind();
+    return authorization()->hasProAccess()
+           && (kind == QStringLiteral("annual")
+               || kind == QStringLiteral("lifetime"));
 }
 
 QString DbScoreAccountModel::statusText() const
@@ -42,9 +77,12 @@ QString DbScoreAccountModel::statusText() const
 
     switch (authorization()->state()) {
     case IDbScoreAuthorizationService::LicenseState::Active:
-        return QStringLiteral("🟢DB-Score年度会员，到期时间：") + expireAtText();
+        if (authorization()->isPermanentMember()) {
+            return QStringLiteral("DB Score 永久会员");
+        }
+        return QStringLiteral("DB Score 年度会员，到期时间：") + expireAtText();
     case IDbScoreAuthorizationService::LicenseState::Trial:
-        return QStringLiteral("✅正在使用免费版 · 3天试用期，剩余：") + trialHoursText();
+        return QStringLiteral("3 天试用中，剩余：") + trialHoursText();
     case IDbScoreAuthorizationService::LicenseState::TrialExpired:
         return QStringLiteral("免费版 · 试用期已结束，开通会员解锁全部功能");
     case IDbScoreAuthorizationService::LicenseState::Expired:
@@ -58,18 +96,37 @@ QString DbScoreAccountModel::statusText() const
     return QString();
 }
 
-QString DbScoreAccountModel::licenseCode() const
+QString DbScoreAccountModel::shortStatusText() const
 {
-    return authorization()->licenseCode();
-}
+    if (!authorization()->isPhoneLoggedIn()) {
+        return QStringLiteral("点击登录");
+    }
 
-QString DbScoreAccountModel::memberType() const
-{
-    return authorization()->memberType();
+    switch (authorization()->state()) {
+    case IDbScoreAuthorizationService::LicenseState::Active:
+        return authorization()->isPermanentMember() ? QStringLiteral("永久会员")
+                                                    : QStringLiteral("年度会员");
+    case IDbScoreAuthorizationService::LicenseState::Trial:
+        return QStringLiteral("免费试用中");
+    case IDbScoreAuthorizationService::LicenseState::TrialExpired:
+        return QStringLiteral("试用已结束");
+    case IDbScoreAuthorizationService::LicenseState::Expired:
+        return QStringLiteral("会员已过期");
+    case IDbScoreAuthorizationService::LicenseState::Revoked:
+        return QStringLiteral("会员已停用");
+    default:
+        break;
+    }
+
+    return QString();
 }
 
 QString DbScoreAccountModel::expireAtText() const
 {
+    if (authorization()->isPermanentMember()) {
+        return QStringLiteral("永久");
+    }
+
     QDateTime expireAt = authorization()->expireAt();
     if (!expireAt.isValid()) {
         return QStringLiteral("—");
@@ -103,24 +160,14 @@ QString DbScoreAccountModel::trialHoursText() const
     return QString::number(qMax(1, qRound(hours * 60.0))) + QStringLiteral("分钟");
 }
 
-int DbScoreAccountModel::daysUntilExpiry() const
-{
-    QDateTime expireAt = authorization()->expireAt();
-    if (!expireAt.isValid()) {
-        return -1;
-    }
-
-    return qMax(0, static_cast<int>(QDateTime::currentDateTimeUtc().daysTo(expireAt)));
-}
-
-QString DbScoreAccountModel::deviceId() const
-{
-    return authorization()->deviceId();
-}
-
 bool DbScoreAccountModel::phoneLoggedIn() const
 {
     return authorization()->isPhoneLoggedIn();
+}
+
+QString DbScoreAccountModel::phoneNumber() const
+{
+    return authorization()->phoneNumber();
 }
 
 QString DbScoreAccountModel::phoneMasked() const
@@ -133,8 +180,34 @@ QString DbScoreAccountModel::phoneNickname() const
     return authorization()->phoneNickname();
 }
 
+QString DbScoreAccountModel::avatarUrl() const
+{
+    QString url = authorization()->avatarUrl();
+    if (url.startsWith(QLatin1Char('/'))) {
+        return authorization()->apiBaseUrl() + url;
+    }
+
+    const QUrl parsed(url);
+    const QString scheme = parsed.scheme().toLower();
+    if (scheme == QStringLiteral("http") || scheme == QStringLiteral("https")
+            || scheme == QStringLiteral("file") || scheme == QStringLiteral("data")) {
+        return url;
+    }
+
+    return QString();
+}
+
 QString DbScoreAccountModel::avatarLetter() const
 {
+    const QString avatar = authorization()->avatarUrl();
+    if (!avatar.isEmpty() && !avatar.contains(QLatin1Char('/'))
+            && !avatar.contains(QLatin1Char('.'))) {
+        if (avatar.size() > 0 && avatar.at(0).isHighSurrogate() && avatar.size() >= 2) {
+            return avatar.left(2);
+        }
+        return avatar.left(1);
+    }
+
     QString nickname = authorization()->phoneNickname();
     if (!nickname.isEmpty()) {
         return nickname.left(1).toUpper();
@@ -148,14 +221,66 @@ QString DbScoreAccountModel::avatarLetter() const
     return QStringLiteral("D");
 }
 
-QString DbScoreAccountModel::apiBaseUrl() const
+QString DbScoreAccountModel::accountCreatedAtText() const
 {
-    return authorization()->apiBaseUrl();
+    return displayDate(authorization()->accountCreatedAt());
 }
 
-QString DbScoreAccountModel::purchasePageUrl() const
+QString DbScoreAccountModel::membershipPlan() const
 {
-    return authorization()->purchasePageUrl();
+    return authorization()->membershipPlan();
+}
+
+QString DbScoreAccountModel::membershipKindText() const
+{
+    const QString kind = authorization()->membershipKind();
+    if (kind == QStringLiteral("trial")) {
+        return QStringLiteral("3 天试用");
+    }
+    if (kind == QStringLiteral("lifetime")) {
+        return QStringLiteral("永久会员");
+    }
+    if (kind == QStringLiteral("annual")) {
+        return QStringLiteral("年度会员");
+    }
+    return QStringLiteral("未开通");
+}
+
+QString DbScoreAccountModel::membershipStartedAtText() const
+{
+    return displayDate(authorization()->membershipStartsAt());
+}
+
+QString DbScoreAccountModel::membershipExpiresAtText() const
+{
+    return authorization()->isPermanentMember() ? QStringLiteral("永久") : expireAtText();
+}
+
+QString DbScoreAccountModel::membershipSourceText() const
+{
+    const QString source = authorization()->membershipSource();
+    if (source == QStringLiteral("admin")) {
+        return QStringLiteral("后台开通");
+    }
+    if (source == QStringLiteral("purchase")) {
+        return QStringLiteral("用户付款开通");
+    }
+    if (source == QStringLiteral("migration")) {
+        return QStringLiteral("历史数据迁移");
+    }
+    return QStringLiteral("—");
+}
+
+QString DbScoreAccountModel::renewalPriceText() const
+{
+    const int priceFen = authorization()->renewalPriceFen();
+    return priceFen > 0 ? QStringLiteral("¥%1/年").arg(priceFen / 100)
+                        : QStringLiteral("价格加载中");
+}
+
+QString DbScoreAccountModel::renewalPlanName() const
+{
+    return authorization()->renewalPlanName();
 }
 
 bool DbScoreAccountModel::busy() const
@@ -171,64 +296,6 @@ QString DbScoreAccountModel::lastError() const
 QString DbScoreAccountModel::sendCodeMessage() const
 {
     return m_sendCodeMessage;
-}
-
-QString DbScoreAccountModel::activationMessage() const
-{
-    return m_activationMessage;
-}
-
-QString DbScoreAccountModel::currentVersion() const
-{
-    return authorization()->currentVersion();
-}
-
-QString DbScoreAccountModel::latestVersion() const
-{
-    return m_latestVersion;
-}
-
-bool DbScoreAccountModel::updateAvailable() const
-{
-    return m_updateAvailable;
-}
-
-QString DbScoreAccountModel::updateDownloadUrl() const
-{
-    return m_updateDownloadUrl;
-}
-
-QString DbScoreAccountModel::updateNotes() const
-{
-    return m_updateNotes;
-}
-
-void DbScoreAccountModel::activate(const QString& code)
-{
-    if (m_busy) {
-        return;
-    }
-
-    if (!authorization()->isPhoneLoggedIn()) {
-        setLastError(QStringLiteral("请先登录后，才能激活会员"));
-        return;
-    }
-
-    setBusy(true);
-    setLastError(QString());
-    setActivationMessage(QString());
-
-    authorization()->activate(code, QString()).onResolve(this, [this](const muse::Ret& ret) {
-        setBusy(false);
-        if (!ret) {
-            setLastError(QString::fromStdString(ret.text()));
-            return;
-        }
-
-        setActivationMessage(QStringLiteral("激活成功，会员到期时间：") + expireAtText());
-        emit modelChanged();
-        emit activated();
-    });
 }
 
 void DbScoreAccountModel::sendCode(const QString& phone)
@@ -253,7 +320,11 @@ void DbScoreAccountModel::sendCode(const QString& phone)
             setLastError(QString::fromStdString(ret.text()));
             return;
         }
-        setSendCodeMessage(QStringLiteral("验证码已发送，请注意查收短信"));
+        const QString debugCode = authorization()->lastOtpDebugCode();
+        setSendCodeMessage(
+            debugCode.isEmpty()
+                ? QStringLiteral("验证码已发送，请注意查收短信")
+                : QStringLiteral("开发环境验证码：") + debugCode);
     });
 }
 
@@ -273,6 +344,104 @@ void DbScoreAccountModel::loginByPhone(const QString& phone, const QString& code
             return;
         }
 
+        setLastError(QString());
+        setSendCodeMessage(QString());
+        emit modelChanged();
+    });
+}
+
+void DbScoreAccountModel::updateAvatar(const QString& fileUrl)
+{
+    if (m_busy) {
+        return;
+    }
+
+    QUrl url(fileUrl);
+    const QString path = url.isLocalFile() ? url.toLocalFile() : fileUrl;
+    const QFileInfo fileInfo(path);
+    constexpr qint64 MAX_SOURCE_BYTES = 30 * 1024 * 1024;
+    if (!fileInfo.isFile() || fileInfo.size() <= 0 || fileInfo.size() > MAX_SOURCE_BYTES) {
+        setLastError(QStringLiteral("头像图片无效或超过 30MB"));
+        return;
+    }
+
+    QImageReader reader(path);
+    reader.setAutoTransform(true);
+    const QSize sourceSize = reader.size();
+    if (sourceSize.isValid()
+            && qint64(sourceSize.width()) * sourceSize.height() > 100 * 1000 * 1000) {
+        setLastError(QStringLiteral("头像图片尺寸过大"));
+        return;
+    }
+
+    QImage image = reader.read();
+    if (image.isNull()) {
+        setLastError(QStringLiteral("无法读取头像图片，请使用 JPG、PNG 或 WebP 格式"));
+        return;
+    }
+
+    constexpr int MAX_AVATAR_DIMENSION = 512;
+    if (image.width() > MAX_AVATAR_DIMENSION || image.height() > MAX_AVATAR_DIMENSION) {
+        image = image.scaled(
+            MAX_AVATAR_DIMENSION,
+            MAX_AVATAR_DIMENSION,
+            Qt::KeepAspectRatio,
+            Qt::SmoothTransformation);
+    }
+
+    QByteArray encoded;
+    QBuffer buffer(&encoded);
+    if (!buffer.open(QIODevice::WriteOnly)) {
+        setLastError(QStringLiteral("头像图片处理失败"));
+        return;
+    }
+
+    const bool keepTransparency = image.hasAlphaChannel();
+    QImageWriter writer(&buffer, keepTransparency ? "PNG" : "JPEG");
+    if (!keepTransparency) {
+        writer.setQuality(88);
+    }
+    if (!writer.write(image)) {
+        setLastError(QStringLiteral("头像图片编码失败"));
+        return;
+    }
+    buffer.close();
+
+    QVariantMap data;
+    data["avatarDataUrl"] = QStringLiteral("data:image/")
+                            + (keepTransparency ? QStringLiteral("png") : QStringLiteral("jpeg"))
+                            + QStringLiteral(";base64,")
+                            + QString::fromLatin1(encoded.toBase64());
+
+    setBusy(true);
+    setLastError(QString());
+    authorization()->updateProfile(data).onResolve(this, [this](const muse::Ret& ret) {
+        setBusy(false);
+        if (!ret) {
+            setLastError(QString::fromStdString(ret.text()));
+            return;
+        }
+        emit modelChanged();
+    });
+}
+
+void DbScoreAccountModel::updateDisplayName(const QString& displayName)
+{
+    const QString normalized = displayName.trimmed();
+    if (m_busy || normalized.isEmpty()) {
+        return;
+    }
+
+    QVariantMap data;
+    data["displayName"] = normalized;
+    setBusy(true);
+    setLastError(QString());
+    authorization()->updateProfile(data).onResolve(this, [this](const muse::Ret& ret) {
+        setBusy(false);
+        if (!ret) {
+            setLastError(QString::fromStdString(ret.text()));
+            return;
+        }
         emit modelChanged();
     });
 }
@@ -297,23 +466,187 @@ void DbScoreAccountModel::refresh()
     });
 }
 
-void DbScoreAccountModel::clearLicense()
-{
-    authorization()->clearLicense();
-    setLastError(QString());
-    emit modelChanged();
-}
-
 void DbScoreAccountModel::logout()
 {
     authorization()->logout();
     setLastError(QString());
+    setSendCodeMessage(QString());
+    m_ordersList.clear();
+    closePaymentDialog();
+    emit ordersChanged();
     emit modelChanged();
 }
 
 void DbScoreAccountModel::openPurchasePage()
 {
-    QDesktopServices::openUrl(QUrl(authorization()->purchasePageUrl()));
+    if (m_paymentCreating || !authorization()->isPhoneLoggedIn()) {
+        return;
+    }
+
+    const quint64 requestGeneration = ++m_paymentRequestGeneration;
+    m_paymentCreating = true;
+    m_paymentVisible = true;
+    m_paymentChecking = false;
+    m_pendingOrderNumber.clear();
+    m_paymentQrSource.clear();
+    m_paymentPlanName = authorization()->renewalPlanName();
+    if (m_paymentPlanName.isEmpty()) {
+        m_paymentPlanName = QStringLiteral("DB Score 年度会员");
+    }
+    const int previewPriceFen = authorization()->renewalPriceFen();
+    m_paymentAmountText = previewPriceFen > 0
+                          ? QStringLiteral("¥%1").arg(previewPriceFen / 100.0, 0, 'f', 2)
+                          : QString();
+    m_paymentStatus = QStringLiteral("正在生成微信支付二维码…");
+    emit paymentChanged();
+
+    setLastError(QString());
+    QVariantMap body;
+    body["productCode"] = QStringLiteral("db-score");
+    authorization()->accountPost("/api/customer/orders", body)
+    .onResolve(this, [this, requestGeneration](const muse::RetVal<QVariantMap>& result) {
+        if (requestGeneration != m_paymentRequestGeneration) {
+            return;
+        }
+        m_paymentCreating = false;
+        if (!result.ret) {
+            setLastError(QString::fromStdString(result.ret.text()));
+            m_paymentStatus = QStringLiteral("微信支付二维码生成失败，请关闭后重试");
+            emit paymentChanged();
+            return;
+        }
+
+        const QVariantMap order = result.val.value("order").toMap();
+        m_pendingOrderNumber = order.value("orderNumber").toString();
+        m_paymentQrSource = order.value("qrDataUrl").toString();
+        m_paymentPlanName = order.value("plan").toString();
+        const int amountFen = order.value("amountFen").toInt();
+        m_paymentAmountText = QStringLiteral("¥%1").arg(amountFen / 100.0, 0, 'f', 2);
+        m_paymentStatus = QStringLiteral("请使用微信扫描二维码支付");
+        m_paymentVisible = !m_paymentQrSource.isEmpty() && !m_pendingOrderNumber.isEmpty();
+        if (!m_paymentVisible) {
+            m_paymentStatus = QStringLiteral("微信支付二维码生成失败，请关闭后重试");
+            setLastError(m_paymentStatus);
+        }
+        emit paymentChanged();
+
+        if (!m_paymentVisible) {
+            return;
+        }
+
+        startPaymentPolling();
+    });
+}
+
+void DbScoreAccountModel::startPaymentPolling()
+{
+    m_paymentPollCount = 40;
+    m_paymentPollTimer.start();
+}
+
+void DbScoreAccountModel::stopPaymentPolling()
+{
+    m_paymentPollTimer.stop();
+    m_paymentPollCount = 0;
+}
+
+void DbScoreAccountModel::checkPaymentNow()
+{
+    if (m_pendingOrderNumber.isEmpty() || m_paymentChecking || !authorization()->isPhoneLoggedIn()) {
+        return;
+    }
+
+    m_paymentChecking = true;
+    emit paymentChanged();
+    authorization()->accountGet(
+        QStringLiteral("/api/customer/orders/") + m_pendingOrderNumber)
+    .onResolve(this, [this](const muse::RetVal<QVariantMap>& result) {
+        m_paymentChecking = false;
+        emit paymentChanged();
+        if (!result.ret) {
+            setPaymentStatus(QStringLiteral("支付状态查询失败，请稍后重试"));
+            return;
+        }
+
+        const QString status = result.val.value("status").toString();
+        if (status == QStringLiteral("paid")) {
+            setPaymentStatus(QStringLiteral("支付成功，会员已开通"));
+            stopPaymentPolling();
+            authorization()->refresh().onResolve(this, [this](const muse::Ret& ret) {
+                if (ret) {
+                    emit modelChanged();
+                }
+            });
+        } else if (status == QStringLiteral("cancelled")
+                   || status == QStringLiteral("expired")) {
+            setPaymentStatus(QStringLiteral("订单已关闭，请重新发起支付"));
+            stopPaymentPolling();
+        }
+    });
+}
+
+void DbScoreAccountModel::closePaymentDialog()
+{
+    ++m_paymentRequestGeneration;
+    stopPaymentPolling();
+    m_pendingOrderNumber.clear();
+    m_paymentQrSource.clear();
+    m_paymentPlanName.clear();
+    m_paymentAmountText.clear();
+    m_paymentStatus.clear();
+    m_paymentVisible = false;
+    m_paymentChecking = false;
+    m_paymentCreating = false;
+    emit paymentChanged();
+}
+
+bool DbScoreAccountModel::paymentVisible() const
+{
+    return m_paymentVisible;
+}
+
+QString DbScoreAccountModel::paymentQrSource() const
+{
+    return m_paymentQrSource;
+}
+
+QString DbScoreAccountModel::paymentPlanName() const
+{
+    return m_paymentPlanName;
+}
+
+QString DbScoreAccountModel::paymentAmountText() const
+{
+    return m_paymentAmountText;
+}
+
+QString DbScoreAccountModel::paymentOrderNumber() const
+{
+    return m_pendingOrderNumber;
+}
+
+QString DbScoreAccountModel::paymentStatusText() const
+{
+    return m_paymentStatus;
+}
+
+bool DbScoreAccountModel::paymentChecking() const
+{
+    return m_paymentChecking;
+}
+
+bool DbScoreAccountModel::paymentCreating() const
+{
+    return m_paymentCreating;
+}
+
+void DbScoreAccountModel::setPaymentStatus(const QString& status)
+{
+    if (m_paymentStatus == status) {
+        return;
+    }
+    m_paymentStatus = status;
+    emit paymentChanged();
 }
 
 void DbScoreAccountModel::copyText(const QString& text)
@@ -325,60 +658,10 @@ void DbScoreAccountModel::copyText(const QString& text)
     QGuiApplication::clipboard()->setText(text);
 }
 
-void DbScoreAccountModel::checkForUpdate()
+void DbScoreAccountModel::clearTransientMessages()
 {
-    if (m_busy) {
-        return;
-    }
-
-    setBusy(true);
     setLastError(QString());
-
-    authorization()->checkForUpdate().onResolve(this, [this](const muse::RetVal<QVariantMap>& result) {
-        setBusy(false);
-        if (!result.ret) {
-            setLastError(QString::fromStdString(result.ret.text()));
-            return;
-        }
-
-        m_latestVersion = result.val.value("latestVersion").toString();
-        m_updateDownloadUrl = result.val.value("downloadUrl").toString();
-        m_updateNotes = result.val.value("notes").toString();
-        m_updateAvailable = result.val.value("hasUpdate").toBool();
-        emit updateInfoChanged();
-    });
-}
-
-void DbScoreAccountModel::openUpdateDownload()
-{
-    if (!m_updateDownloadUrl.isEmpty()) {
-        QDesktopServices::openUrl(QUrl(m_updateDownloadUrl));
-    }
-}
-
-QString DbScoreAccountModel::inviteCode() const
-{
-    return m_inviteCode;
-}
-
-QString DbScoreAccountModel::inviteUrl() const
-{
-    return m_inviteUrl;
-}
-
-int DbScoreAccountModel::commissionBalanceCents() const
-{
-    return m_commissionBalanceCents;
-}
-
-int DbScoreAccountModel::totalEarnedCents() const
-{
-    return m_totalEarnedCents;
-}
-
-int DbScoreAccountModel::inviteeCount() const
-{
-    return m_inviteeCount;
+    setSendCodeMessage(QString());
 }
 
 QVariantList DbScoreAccountModel::ordersList() const
@@ -395,59 +678,31 @@ static QVariantMap dataMap(const QVariantMap& obj)
     return data;
 }
 
-void DbScoreAccountModel::loadInvite()
-{
-    authorization()->apiGet("/api/invite").onResolve(this, [this](const muse::RetVal<QVariantMap>& result) {
-        if (!result.ret) {
-            return;
-        }
-
-        QVariantMap data = dataMap(result.val);
-        m_inviteCode = data.value("inviteCode").toString();
-        m_inviteUrl = data.value("inviteUrl").toString();
-        m_commissionBalanceCents = data.value("commissionBalanceCents").toInt();
-        m_totalEarnedCents = data.value("totalEarnedCents").toInt();
-        m_inviteeCount = data.value("inviteeCount").toInt();
-        emit inviteChanged();
-    });
-}
-
 void DbScoreAccountModel::loadOrders()
 {
-    authorization()->apiGet("/api/orders?page=1&pageSize=50").onResolve(this, [this](const muse::RetVal<QVariantMap>& result) {
-        if (!result.ret) {
-            return;
-        }
-
-        QVariantMap data = dataMap(result.val);
-        m_ordersList = data.value("list").toList();
-        emit ordersChanged();
-    });
-}
-
-void DbScoreAccountModel::submitFeedback(const QString& content, const QString& contact)
-{
-    if (m_busy || content.trimmed().isEmpty()) {
+    if (m_busy) {
         return;
     }
 
     setBusy(true);
     setLastError(QString());
 
-    QVariantMap body;
-    body["content"] = content;
-    if (!contact.isEmpty()) {
-        body["contact"] = contact;
-    }
-
-    authorization()->apiPost("/api/feedback", body).onResolve(this, [this](const muse::RetVal<QVariantMap>& result) {
+    authorization()->accountGet("/api/customer/orders?productCode=db-score").onResolve(this, [this](const muse::RetVal<QVariantMap>& result) {
         setBusy(false);
         if (!result.ret) {
             setLastError(QString::fromStdString(result.ret.text()));
             return;
         }
 
-        emit feedbackSent();
+        QVariantMap data = dataMap(result.val);
+        m_ordersList.clear();
+        for (const QVariant& value : data.value("orders").toList()) {
+            const QVariantMap order = value.toMap();
+            if (order.value("product").toString().trimmed() == QStringLiteral("DB Score")) {
+                m_ordersList.append(order);
+            }
+        }
+        emit ordersChanged();
     });
 }
 
@@ -481,12 +736,3 @@ void DbScoreAccountModel::setSendCodeMessage(const QString& message)
     emit sendCodeMessageChanged();
 }
 
-void DbScoreAccountModel::setActivationMessage(const QString& message)
-{
-    if (m_activationMessage == message) {
-        return;
-    }
-
-    m_activationMessage = message;
-    emit activationMessageChanged();
-}

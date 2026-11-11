@@ -24,7 +24,6 @@ qt_add_qml_module(muse_cloud_qml
     URI Muse.Cloud
     VERSION 1.0
     QML_FILES
-        AccountInfoButton.qml
         AccountPage.qml
     IMPORTS
         TARGET muse_ui_qml

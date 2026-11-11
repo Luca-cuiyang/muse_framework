@@ -56,10 +56,13 @@ QueuePool::ThreadData* QueuePool::threadData(const std::thread::id& threadId, bo
     // so we find data for a given thread,
     // but we can work with it concurrently from different threads!!
 
-    size_t count = m_count.load();
+    size_t count = std::min(m_count.load(), m_threads.size());
     assert(count <= m_threads.size());
     for (size_t i = 0; i < count; ++i) {
         ThreadData* thdata = m_threads.at(i);
+        if (!thdata) {
+            continue;
+        }
         // found a slot for the given thread
         if (thdata->threadId == threadId) {
             return thdata;
@@ -74,7 +77,7 @@ QueuePool::ThreadData* QueuePool::threadData(const std::thread::id& threadId, bo
         // in other threads without a lock.
         // `m_count` limits the number of iterations (only filled slots).
         std::scoped_lock lock(m_mutex);
-        count = m_count.load();
+        count = std::min(m_count.load(), m_threads.size());
         if (count < m_threads.size()) {
             ThreadData* thdata = new ThreadData();
             thdata->threadId = threadId;
@@ -181,8 +184,12 @@ void QueuePool::processMessages(const std::thread::id& th)
         return;
     }
 
-    for (size_t i = 0; i < thdata->ports.size(); ++i) {
-        std::shared_ptr<Port>& port = thdata->ports.at(i);
+    // Ports may unregister themselves while handling a message. Keep a stable
+    // snapshot and release the pool lock before invoking user callbacks.
+    std::vector<std::shared_ptr<Port> > ports = thdata->ports;
+    lock.unlock();
+
+    for (const std::shared_ptr<Port>& port : ports) {
         port->process();
     }
 }

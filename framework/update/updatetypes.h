@@ -54,6 +54,7 @@ struct ReleaseInfo {
     std::string version;
     std::string fileName;
     std::string fileUrl;
+    std::string sha256;
     uint64_t fileSize = 0;
 
     std::string imageUrl;           // it can be base64 data, like "data:image/png;base64,iVBORw0KGgoA......"

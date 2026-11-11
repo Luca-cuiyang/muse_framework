@@ -72,6 +72,18 @@ bool waitForProcessExit(long long pid, int timeoutMs)
 
 bool verifyInstall(const std::string& path, const std::string& team)
 {
+    if (team.empty()) {
+        char* const argv[] = {
+            const_cast<char*>("codesign"),
+            const_cast<char*>("--verify"),
+            const_cast<char*>("--deep"),
+            const_cast<char*>("--strict"),
+            const_cast<char*>(path.c_str()),
+            nullptr
+        };
+        return runDetachedAndWait("/usr/bin/codesign", argv) == 0;
+    }
+
     //! NOTE: A plain codesign verify accepts any validly signed bundle,
     //! including ad-hoc signed ones anyone can produce. The requirement pins
     //! the signer to the host application's team, so a bundle planted into

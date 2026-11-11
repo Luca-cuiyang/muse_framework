@@ -24,7 +24,11 @@
 
 #include "io/fileinfo.h"
 #include "io/path.h"
+#include "log.h"
 
+#include <algorithm>
+
+#include <QCoreApplication>
 #if defined(Q_OS_WIN)
 #include <QSettings>
 #endif
@@ -37,6 +41,10 @@ io::paths_t defaultSearchPaths()
 {
     io::paths_t paths;
 #if defined(Q_OS_WIN)
+    // 优先查找程序自身安装目录下的 FFmpeg（随安装包一起分发），
+    // 保证 Windows 上无需单独安装 FFmpeg 即可导出 MP4。
+    paths.push_back(io::path_t(QCoreApplication::applicationDirPath()));
+
     QSettings settings(
         "HKEY_LOCAL_MACHINE\\Software\\FFmpeg\\Providers",
         QSettings::NativeFormat
@@ -54,6 +62,11 @@ io::paths_t defaultSearchPaths()
         settings.endGroup(); // Back to parent group.
     }
 #elif defined(Q_OS_MAC)
+    // 优先查找 app 内置的 FFmpeg（随安装包一起分发），
+    // 保证 Mac 上无需安装 Homebrew FFmpeg 即可导出 MP4。
+    io::path_t bundledDir = io::path_t(QCoreApplication::applicationDirPath()) + "/../Frameworks/ffmpeg";
+    paths.push_back(bundledDir);
+
     RetVal<io::paths_t> providers = io::Dir::scanFiles("/Library/Application Support/FFmpeg/Providers", { "*" },
                                                        io::ScanMode::FoldersInCurrentDir);
     if (providers.ret) {
@@ -175,14 +188,18 @@ FFmpegLibPaths findLibraryPaths(const io::path_t& configPath)
 {
     FFmpegLibPaths result;
 
-    io::paths_t searchPaths;
-    if (!configPath.empty() && io::FileInfo::exists(configPath)) {
-        searchPaths.push_back(io::FileInfo(configPath).entryType() == io::EntryType::Dir
-                              ? configPath : io::dirpath(configPath));
-    }
+    io::paths_t searchPaths = defaultSearchPaths();
 
-    for (const io::path_t& p : defaultSearchPaths()) {
-        searchPaths.push_back(p);
+    // A previously selected FFmpeg directory is only a fallback. The bundled
+    // runtime must always win so an old development or installation path can
+    // never override the libraries shipped with the current application.
+    if (!configPath.empty() && io::FileInfo::exists(configPath)) {
+        io::path_t configuredDir = io::FileInfo(configPath).entryType() == io::EntryType::Dir
+                                   ? configPath : io::dirpath(configPath);
+        if (std::find(searchPaths.begin(), searchPaths.end(), configuredDir) == searchPaths.end()) {
+            const auto insertAt = searchPaths.empty() ? searchPaths.begin() : searchPaths.begin() + 1;
+            searchPaths.insert(insertAt, configuredDir);
+        }
     }
 
     for (const io::path_t& path : searchPaths) {

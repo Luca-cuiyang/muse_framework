@@ -36,7 +36,10 @@ public:
     bool isValid() const { return !m_data.empty(); }
     unsigned int channels() const { return m_channels; }
     unsigned int sampleRate() const { return m_sampleRate; }
-    uint64_t frames() const { return m_data.empty() ? 0 : m_data.size() / m_channels; }
+    uint64_t frames() const
+    {
+        return (m_data.empty() || m_channels == 0) ? 0 : m_data.size() / m_channels;
+    }
     const std::vector<float>& data() const { return m_data; }
 
     void crop(double startSeconds, double endSeconds);

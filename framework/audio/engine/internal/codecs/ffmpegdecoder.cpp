@@ -25,7 +25,7 @@
 #include <cstdio>
 #include <string>
 
-#include <dlfcn.h>
+#include "global/dlib.h"
 
 extern "C" {
 #include "media/thirdparty/ffmpeg/v8/libavformat/avformat.h"
@@ -76,11 +76,14 @@ struct AvApi {
 template<typename T>
 void resolve(void* lib, const char* name, T& out)
 {
-    out = reinterpret_cast<T>(dlsym(lib, name));
+    out = reinterpret_cast<T>(muse::getLibFunc(lib, name));
 }
 
 void* openLib(const char* name)
 {
+#if defined(Q_OS_WIN)
+    return muse::loadLib(io::path_t(name));
+#else
     // 先按标准路径逐个尝试，覆盖 Homebrew / 常见安装位置
     const char* dirs[] = {
         "/opt/homebrew/lib/",
@@ -91,14 +94,15 @@ void* openLib(const char* name)
 
     for (int i = 0; dirs[i]; ++i) {
         std::string full = std::string(dirs[i]) + name;
-        void* h = dlopen(full.c_str(), RTLD_LAZY | RTLD_LOCAL);
+        void* h = muse::loadLib(io::path_t(full));
         if (h) {
             return h;
         }
     }
 
     // 兜底：交给系统默认搜索路径
-    return dlopen(name, RTLD_LAZY | RTLD_LOCAL);
+    return muse::loadLib(io::path_t(name));
+#endif
 }
 
 bool isPlanar(AVSampleFormat fmt)
@@ -143,6 +147,10 @@ int bytesPerSample(AVSampleFormat fmt)
 // 将一帧 FFmpeg 采样转换为交错 float，追加到 out。
 void appendFrame(const AVFrame* frame, std::vector<float>& out)
 {
+    if (!frame) {
+        return;
+    }
+
     const int channels = frame->ch_layout.nb_channels;
     if (channels <= 0 || frame->nb_samples <= 0) {
         return;
@@ -155,13 +163,28 @@ void appendFrame(const AVFrame* frame, std::vector<float>& out)
     }
 
     const bool planar = isPlanar(fmt);
+    if (planar) {
+        if (!frame->extended_data) {
+            return;
+        }
+        for (int ch = 0; ch < channels; ++ch) {
+            if (!frame->extended_data[ch]) {
+                return;
+            }
+        }
+    } else if (!frame->data[0]) {
+        return;
+    }
+
     const size_t oldSize = out.size();
     out.resize(oldSize + size_t(frame->nb_samples) * size_t(channels));
 
     for (int s = 0; s < frame->nb_samples; ++s) {
         for (int ch = 0; ch < channels; ++ch) {
+            // 平面格式每个声道是独立缓冲区，采样步长应为单个采样的字节数；
+            // 之前误用 linesize[0]（整个平面的字节数）作步长，会越界读取并崩溃。
             const uint8_t* p = planar
-                                   ? frame->extended_data[ch] + size_t(s) * size_t(frame->linesize[0])
+                                   ? frame->extended_data[ch] + size_t(s) * size_t(bps)
                                    : frame->data[0] + (size_t(s) * size_t(channels) + size_t(ch)) * size_t(bps);
 
             float v = 0.f;
@@ -210,6 +233,10 @@ struct MemIo {
 int memRead(void* opaque, uint8_t* buf, int bufSize)
 {
     MemIo* m = static_cast<MemIo*>(opaque);
+    if (!m || !buf || bufSize <= 0 || m->pos >= m->size) {
+        return AVERROR_EOF;
+    }
+
     const size_t remaining = m->size - m->pos;
     const size_t n = remaining < size_t(bufSize) ? remaining : size_t(bufSize);
     std::memcpy(buf, m->data + m->pos, n);
@@ -253,13 +280,13 @@ FfmpegDecoder::~FfmpegDecoder()
     }
 
     if (m_impl->api.avformat) {
-        dlclose(m_impl->api.avformat);
+        muse::closeLib(m_impl->api.avformat);
     }
     if (m_impl->api.avcodec) {
-        dlclose(m_impl->api.avcodec);
+        muse::closeLib(m_impl->api.avcodec);
     }
     if (m_impl->api.avutil) {
-        dlclose(m_impl->api.avutil);
+        muse::closeLib(m_impl->api.avutil);
     }
 
     delete m_impl;
@@ -279,9 +306,19 @@ bool FfmpegDecoder::decode(const uint8_t* data, size_t size, std::vector<float>&
 
     AvApi& api = m_impl->api;
     if (!api.avformat) {
+#if defined(Q_OS_WIN)
+        api.avformat = openLib("avformat-62.dll");
+        api.avcodec = openLib("avcodec-62.dll");
+        api.avutil = openLib("avutil-60.dll");
+#elif defined(Q_OS_LINUX) || defined(Q_OS_FREEBSD)
+        api.avformat = openLib("libavformat.so.62");
+        api.avcodec = openLib("libavcodec.so.62");
+        api.avutil = openLib("libavutil.so.60");
+#else
         api.avformat = openLib("libavformat.dylib");
         api.avcodec = openLib("libavcodec.dylib");
         api.avutil = openLib("libavutil.dylib");
+#endif
         if (!api.avformat || !api.avcodec || !api.avutil) {
             return false;
         }

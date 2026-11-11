@@ -68,6 +68,8 @@ constexpr const wchar_t* STAGING_SDDL = L"O:BAD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA
 //! from placing theirs. The contents are untrusted either way.
 constexpr const wchar_t* REQUESTS_SDDL = L"O:BAD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;GRGWGXSD;;;BU)";
 
+constexpr unsigned long long MAX_PACKAGE_BYTES = 500ull * 1024ull * 1024ull;
+
 HANDLE g_logFile = INVALID_HANDLE_VALUE;
 
 void logLine(const std::wstring& message)
@@ -165,6 +167,12 @@ bool makeDirectories(const std::wstring& path)
         const std::wstring part = path.substr(0, pos);
         if (!part.empty()) {
             ::CreateDirectoryW(part.c_str(), nullptr);
+            const DWORD attributes = ::GetFileAttributesW(part.c_str());
+            if (attributes == INVALID_FILE_ATTRIBUTES
+                || (attributes & FILE_ATTRIBUTE_DIRECTORY) == 0
+                || (attributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0) {
+                return false;
+            }
         }
         pos = path.find_first_of(L"\\/", pos + 1);
     }
@@ -172,7 +180,9 @@ bool makeDirectories(const std::wstring& path)
     ::CreateDirectoryW(path.c_str(), nullptr);
 
     const DWORD attributes = ::GetFileAttributesW(path.c_str());
-    return attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_DIRECTORY);
+    return attributes != INVALID_FILE_ATTRIBUTES
+           && (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0
+           && (attributes & FILE_ATTRIBUTE_REPARSE_POINT) == 0;
 }
 
 //! Takes ownership of `path` and replaces its inherited DACL with `sddl`.
@@ -199,11 +209,26 @@ bool secureDirectory(const std::wstring& path, const wchar_t* sddl)
 
     if (::GetSecurityDescriptorDacl(descriptor, &daclPresent, &dacl, &daclDefaulted) && daclPresent
         && ::GetSecurityDescriptorOwner(descriptor, &owner, &ownerDefaulted) && owner) {
-        const DWORD result = ::SetNamedSecurityInfoW(const_cast<wchar_t*>(path.c_str()), SE_FILE_OBJECT,
-                                                     OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION
-                                                     | PROTECTED_DACL_SECURITY_INFORMATION,
-                                                     owner, nullptr, dacl, nullptr);
-        ok = result == ERROR_SUCCESS;
+        // Open the reparse point itself, never its target. Path-based ACL calls
+        // can be redirected after a check; an owned handle cannot.
+        const HANDLE directory = ::CreateFileW(
+            path.c_str(), READ_CONTROL | WRITE_DAC | WRITE_OWNER,
+            FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING,
+            FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
+
+        if (directory != INVALID_HANDLE_VALUE) {
+            BY_HANDLE_FILE_INFORMATION info = { };
+            if (::GetFileInformationByHandle(directory, &info)
+                && (info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0
+                && (info.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) == 0) {
+                const DWORD result = ::SetSecurityInfo(
+                    directory, SE_FILE_OBJECT,
+                    OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
+                    owner, nullptr, dacl, nullptr);
+                ok = result == ERROR_SUCCESS;
+            }
+            ::CloseHandle(directory);
+        }
     }
 
     ::LocalFree(descriptor);
@@ -215,7 +240,9 @@ bool secureDirectory(const std::wstring& path, const wchar_t* sddl)
 bool ensureSecureRoot(const std::wstring& appId)
 {
     const std::wstring root = shared::updateRootPath(appId);
-    if (!makeDirectories(root)) {
+    if (!makeDirectories(shared::vendorRootPath())
+        || !makeDirectories(shared::updatesRootPath())
+        || !makeDirectories(root)) {
         return false;
     }
 
@@ -235,6 +262,42 @@ bool copyFileWithRetries(const std::wstring& from, const std::wstring& to, int a
     }
 
     return false;
+}
+
+//! A request path is supplied by an unprivileged caller. Only accept a normal
+//! local drive file with a bounded size: SYSTEM must not be induced to
+//! authenticate to an SMB path or copy an unbounded device/stream.
+bool localPackageSize(const std::wstring& path, unsigned long long& size)
+{
+    size = 0;
+    if (path.size() < 3
+        || !((path[0] >= L'A' && path[0] <= L'Z') || (path[0] >= L'a' && path[0] <= L'z'))
+        || path[1] != L':' || (path[2] != L'\\' && path[2] != L'/')) {
+        return false;
+    }
+
+    const std::wstring driveRoot = path.substr(0, 2) + L"\\";
+    const UINT driveType = ::GetDriveTypeW(driveRoot.c_str());
+    if (driveType == DRIVE_REMOTE || driveType == DRIVE_NO_ROOT_DIR) {
+        return false;
+    }
+
+    WIN32_FILE_ATTRIBUTE_DATA attributes = { };
+    if (!::GetFileAttributesExW(path.c_str(), GetFileExInfoStandard, &attributes)
+        || (attributes.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
+        return false;
+    }
+
+    ULARGE_INTEGER fileSize;
+    fileSize.LowPart = attributes.nFileSizeLow;
+    fileSize.HighPart = attributes.nFileSizeHigh;
+
+    if (fileSize.QuadPart == 0 || fileSize.QuadPart > MAX_PACKAGE_BYTES) {
+        return false;
+    }
+
+    size = fileSize.QuadPart;
+    return true;
 }
 
 bool regWriteString(const std::wstring& subKey, const wchar_t* name, const std::wstring& value)
@@ -909,21 +972,9 @@ struct Registration {
 //! An explicit value wins - it is the only way to accept two while a certificate
 //! is being rotated; otherwise whatever signed the package doing the
 //! registering, so that only whoever signed this release can sign the next one.
-void registerCertAnchors(const Registration& registration, const std::wstring& key)
+void registerCertAnchors(const Registration& registration, const std::wstring& key,
+                         const SignatureAnchors& fromPackage)
 {
-    SignatureAnchors fromPackage;
-    if (!registration.certFrom.empty()) {
-        if (verifySignature(registration.certFrom, fromPackage)) {
-            logLine(L"register-task: anchors taken from " + registration.certFrom + L": cn=" + fromPackage.subject
-                    + L" key=" + fromPackage.keyHash + L" root=" + fromPackage.rootHash);
-        } else {
-            //! NOTE: A repair installs from the cached copy of the package, which
-            //! carries no signature; keep what an earlier run worked out rather
-            //! than refuse everything from then on.
-            logLine(L"register-task: could not read the signature of " + registration.certFrom);
-        }
-    }
-
     auto pick = [&key](const std::wstring& explicitValue, const std::wstring& derived, const wchar_t* name) {
         const std::wstring value = !explicitValue.empty()
                                    ? explicitValue
@@ -977,6 +1028,8 @@ void registerProductIdentity(const Registration& registration, const std::wstrin
     }
 }
 
+int unregisterTask(const std::wstring& appId);
+
 int registerTask(const Registration& registration)
 {
     const std::wstring& appId = registration.appId;
@@ -990,6 +1043,51 @@ int registerTask(const Registration& registration)
     if (registration.packageType != shared::PACKAGE_TYPE_MSI && registration.packageType != shared::PACKAGE_TYPE_EXE) {
         logLine(L"register-task: --package-type must be \"msi\" or \"exe\"");
         return 1;
+    }
+
+    const std::wstring key = shared::registryKeyPath(appId);
+
+    SignatureAnchors packageAnchors;
+    if (!registration.certFrom.empty()) {
+        unsigned long long packageSize = 0;
+        if (localPackageSize(registration.certFrom, packageSize)
+            && verifySignature(registration.certFrom, packageAnchors)) {
+            logLine(L"register-task: anchors taken from " + registration.certFrom + L": cn=" + packageAnchors.subject
+                    + L" key=" + packageAnchors.keyHash + L" root=" + packageAnchors.rootHash);
+        } else {
+            //! NOTE: A repair may install from the cached copy of an MSI, which
+            //! does not retain Authenticode. Network/device paths are rejected
+            //! here so a SYSTEM custom action never authenticates over SMB.
+            logLine(L"register-task: package is not a signed local file: " + registration.certFrom);
+        }
+    }
+
+    const std::wstring expectedKeys = !registration.certKeys.empty()
+                                      ? registration.certKeys
+                                      : (!packageAnchors.keyHash.empty()
+                                         ? packageAnchors.keyHash
+                                         : regReadString(key, shared::REG_VALUE_CERT_KEYS));
+    const std::wstring expectedRoots = !registration.certRoots.empty()
+                                       ? registration.certRoots
+                                       : (!packageAnchors.rootHash.empty()
+                                          ? packageAnchors.rootHash
+                                          : regReadString(key, shared::REG_VALUE_CERT_ROOTS));
+
+    //! Unsigned ad-hoc builds cannot establish who may publish the next package.
+    //! Creating a SYSTEM task in that state adds attack surface without making
+    //! automatic installation possible, so remove any old registration instead.
+    //! Installing a properly signed build later takes the normal branch and
+    //! registers the task automatically.
+    if (expectedKeys.empty() && expectedRoots.empty()) {
+        logLine(L"register-task: no signing anchors; background updates disabled");
+        unregisterTask(appId);
+        ::DeleteFileW(shared::detachedHelperPath(appId).c_str());
+        closeLog();
+        ::DeleteFileW(shared::logFilePath(appId).c_str());
+        ::RemoveDirectoryW(shared::requestsDirPath(appId).c_str());
+        ::RemoveDirectoryW(shared::stagingDirPath(appId).c_str());
+        ::RemoveDirectoryW(shared::updateRootPath(appId).c_str());
+        return 0;
     }
 
     // The working area is created up front so that the application can drop a
@@ -1017,8 +1115,6 @@ int registerTask(const Registration& registration)
     //! others.
     const std::wstring appPath = installDir + L"\\" + registration.appExe;
 
-    const std::wstring key = shared::registryKeyPath(appId);
-
     if (!regWriteString(key, shared::REG_VALUE_INSTALL_DIR, installDir)
         || !regWriteString(key, shared::REG_VALUE_APP_PATH, appPath)
         || !regWriteString(key, shared::REG_VALUE_PACKAGE_TYPE, registration.packageType)) {
@@ -1028,7 +1124,7 @@ int registerTask(const Registration& registration)
 
     regWriteString(key, shared::REG_VALUE_INSTALL_ARGS, registration.installArgs);
 
-    registerCertAnchors(registration, key);
+    registerCertAnchors(registration, key, packageAnchors);
     registerProductIdentity(registration, key);
 
     ComScope com;
@@ -1429,6 +1525,12 @@ int applyRun(const std::wstring& appId)
     //! behind would be replayed the next time the task is run.
     ::DeleteFileW(shared::requestFilePath(appId).c_str());
 
+    unsigned long long sourceSize = 0;
+    if (!localPackageSize(request.packagePath, sourceSize)) {
+        logLine(L"apply-run: package path is not a bounded local file");
+        return 1;
+    }
+
     //! NOTE: Asked while the application is still running, and so still has a
     //! session to be asked about.
     const DWORD sessionId = userSessionId(request.pid);
@@ -1470,6 +1572,12 @@ int applyRun(const std::wstring& appId)
         logLine(L"apply-run: " + reason);
         ::DeleteFileW(staged.c_str());
     };
+
+    unsigned long long stagedSize = 0;
+    if (!localPackageSize(staged, stagedSize) || stagedSize != sourceSize) {
+        reject(L"the staged package changed size or is not a normal local file");
+        return 1;
+    }
 
     //! NOTE: A valid Authenticode signature alone is not enough - the package
     //! path comes from an unprivileged caller, who could otherwise have us
@@ -1691,7 +1799,9 @@ int runCommandLine()
 
     //! NOTE: Secured before the log is opened - every one of these commands runs
     //! privileged, and the log lives in that same directory.
-    ensureSecureRoot(appId);
+    if (!ensureSecureRoot(appId)) {
+        return 1;
+    }
     openLog(appId, isApply);
 
     int returnCode = 1;

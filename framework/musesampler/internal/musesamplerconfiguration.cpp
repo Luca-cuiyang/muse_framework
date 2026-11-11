@@ -65,7 +65,10 @@ muse::io::path_t MuseSamplerConfiguration::defaultLibraryPath() const
 
 muse::Version MuseSamplerConfiguration::minSupportedVersion() const
 {
-    return Version(0, 105, 0);
+    //! 0.105.x 的库在控制台/无网络环境下 init 会抛不可捕获的异常（out_of_range），
+    //! 这里抬高最低支持版本，直接跳过这版损坏的 MuseSampler 库。
+    //! 架子鼓音色走 GM 鼓组 soundfont，不依赖 MuseSampler。
+    return Version(0, 106, 0);
 }
 
 bool MuseSamplerConfiguration::shouldShowBuildNumber() const

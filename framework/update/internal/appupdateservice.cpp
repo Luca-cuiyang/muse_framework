@@ -24,6 +24,9 @@
 
 #include <QBuffer>
 #include <QColor>
+#include <QCryptographicHash>
+#include <QFile>
+#include <QFileInfo>
 #include <QJsonParseError>
 #include <QJsonObject>
 #include <QJsonValue>
@@ -56,6 +59,37 @@ static constexpr uint64_t UNPACK_SIZE_FACTOR = 2;
 static constexpr uint64_t DISK_SPACE_RESERVE = 100ull * 1024 * 1024;
 
 static constexpr uint64_t MAX_PACKAGE_SIZE = 500ull * 1024 * 1024;
+
+static QString fileSha256(const io::path_t& path)
+{
+    QFile file(path.toQString());
+    if (!file.open(QIODevice::ReadOnly)) {
+        return QString();
+    }
+
+    QCryptographicHash hash(QCryptographicHash::Sha256);
+    if (!hash.addData(&file)) {
+        return QString();
+    }
+
+    return QString::fromLatin1(hash.result().toHex());
+}
+
+static bool isSha256Hex(const QString& value)
+{
+    if (value.size() != 64) {
+        return false;
+    }
+
+    for (const QChar c : value) {
+        if (!((c >= QLatin1Char('0') && c <= QLatin1Char('9'))
+              || (c >= QLatin1Char('a') && c <= QLatin1Char('f')))) {
+            return false;
+        }
+    }
+
+    return true;
+}
 
 static QDate calculateWeekBeginForDate(const QDate& date)
 {
@@ -296,7 +330,10 @@ RetVal<Progress> AppUpdateService::downloadRelease()
         m_updateProgress.progress(static_cast<int64_t>(offset) + current, static_cast<int64_t>(offset) + total, msg);
     }, Asyncable::Mode::SetReplace);
 
-    downloadProgress.val.finished().onReceive(this, [this, finalPath, partialPath, offset](const ProgressResult& res) {
+    downloadProgress.val.finished().onReceive(
+        this,
+        [this, finalPath, partialPath, offset, expectedSha = info.sha256,
+         expectedSize = info.fileSize](const ProgressResult& res) {
         m_downloadInProgress = false;
 
         if (!res.ret) {
@@ -322,6 +359,25 @@ RetVal<Progress> AppUpdateService::downloadRelease()
         if (!ret) {
             m_updateProgress.finish(ProgressResult::make_ret(ret));
             return;
+        }
+
+        const RetVal<uint64_t> actualSize = fileSystem()->fileSize(finalPath);
+        if (!actualSize.ret || actualSize.val != expectedSize) {
+            fileSystem()->remove(finalPath, false);
+            m_updateProgress.finish(ProgressResult::make_ret(
+                make_ret(Err::NetworkError, "update package size mismatch")));
+            return;
+        }
+
+        if (!expectedSha.empty()) {
+            const QString actualSha = fileSha256(finalPath);
+            const QString expected = QString::fromStdString(expectedSha).trimmed().toLower();
+            if (actualSha != expected) {
+                fileSystem()->remove(finalPath, false);
+                m_updateProgress.finish(ProgressResult::make_ret(
+                    make_ret(Err::NetworkError, "update package checksum mismatch")));
+                return;
+            }
         }
 
         m_updateProgress.finish(ProgressResult::make_ok(Val(finalPath)));
@@ -455,11 +511,43 @@ RetVal<ReleaseInfo> AppUpdateService::parseRelease(const QByteArray& json) const
         return make_ret(Err::ReleaseInfoParseError, "No release version");
     }
 
+    const QString fileName = assetObj.value("name").toString();
+    const QString fileUrlString = assetObj.value("browser_download_url").toString();
+    const QString sha256 = assetObj.value("sha256").toString().trimmed().toLower();
+    const qint64 fileSize = assetObj.value("size").toInteger();
+
+    if (fileName.isEmpty() || fileName != QFileInfo(fileName).fileName()
+        || fileName == QStringLiteral(".") || fileName == QStringLiteral("..")
+        || fileName.contains(QLatin1Char(':'))) {
+        return make_ret(Err::ReleaseInfoParseError, "Unsafe release asset name");
+    }
+
+    const QUrl fileUrl(fileUrlString);
+    if (!fileUrl.isValid()
+        || fileUrl.scheme().compare(QStringLiteral("https"), Qt::CaseInsensitive) != 0
+        || fileUrl.host().compare(QStringLiteral("drumbear.cn"), Qt::CaseInsensitive) != 0
+        || (fileUrl.port() != -1 && fileUrl.port() != 443)
+        || !fileUrl.userInfo().isEmpty()
+        || fileUrl.hasFragment()
+        || !fileUrl.path().startsWith(QStringLiteral("/downloads/"))
+        || QFileInfo(fileUrl.path()).fileName() != fileName) {
+        return make_ret(Err::ReleaseInfoParseError, "Untrusted release asset URL");
+    }
+
+    if (!isSha256Hex(sha256)) {
+        return make_ret(Err::ReleaseInfoParseError, "Missing or invalid SHA-256");
+    }
+
+    if (fileSize <= 0 || static_cast<uint64_t>(fileSize) > MAX_PACKAGE_SIZE) {
+        return make_ret(Err::ReleaseInfoParseError, "Invalid release asset size");
+    }
+
     RetVal<ReleaseInfo> result;
     result.ret = muse::make_ok();
-    result.val.fileName = assetObj.value("name").toString().toStdString();
-    result.val.fileUrl = assetObj.value("browser_download_url").toString().toStdString();
-    result.val.fileSize = static_cast<uint64_t>(std::max<qint64>(assetObj.value("size").toInteger(), 0));
+    result.val.fileName = fileName.toStdString();
+    result.val.fileUrl = fileUrlString.toStdString();
+    result.val.sha256 = sha256.toStdString();
+    result.val.fileSize = static_cast<uint64_t>(fileSize);
     result.val.version = version.toStdString();
     result.val.notes = release.value("bodyMarkdown").toString().toStdString();
 

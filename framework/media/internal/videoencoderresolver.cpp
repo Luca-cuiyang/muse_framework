@@ -48,6 +48,9 @@ void VideoEncoderResolver::init()
 
         m_reloadFfmpegTimer->stop();
     });
+    // 启动后 1 秒自动重试一次 FFmpeg 加载，避免启动时偶发加载失败导致
+    // 导出按钮一直灰色、必须重启软件才能恢复。
+    m_reloadFfmpegTimer->start();
 
     m_ffmpegLibWatcher.directoryChanged().onReceive(this, [this](const std::string&) {
         if (m_reloadFfmpegTimer->isActive()) {
@@ -91,6 +94,9 @@ void VideoEncoderResolver::setIsSettingMode(bool arg)
 {
     if (arg) {
         if (m_currentEncoderFFmpegVersion == FFMPEG_INVALID_VERSION) {
+            // 打开导出对话框/选择 MP4 时，若 FFmpeg 尚未加载成功（例如启动时
+            // 加载库偶发失败），立即重试一次，避免导出按钮一直是灰色、必须重启。
+            loadFFmpeg(configuration()->ffmpegLibsDir());
             startWatchingFfmpegsDirs();
         }
     } else {

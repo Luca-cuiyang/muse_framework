@@ -92,6 +92,11 @@ void Settings::load()
     m_items = readItems();
 }
 
+void Settings::sync()
+{
+    m_settings->sync();
+}
+
 void Settings::reset(bool keepDefaultSettings, bool notifyAboutChanges, bool notifyOtherInstances)
 {
     m_settings->clear();

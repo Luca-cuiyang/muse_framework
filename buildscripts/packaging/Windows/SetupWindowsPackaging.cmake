@@ -56,13 +56,27 @@ set(CPACK_WIX_ROOT "${PROGRAMFILES}/WiX Toolset v3.11")
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/buildscripts/packaging/Windows/Installer" ${CMAKE_MODULE_PATH})
 
 if(NOT CPACK_WIX_PRODUCT_GUID)
-    set(CPACK_WIX_PRODUCT_GUID "00000000-0000-0000-0000-000000000000")
+    string(UUID CPACK_WIX_PRODUCT_GUID
+        NAMESPACE "6ba7b810-9dad-11d1-80b4-00c04fd430c8"
+        NAME "cn.drumbear.${MUSE_APP_NAME_MACHINE_READABLE}.product.${CPACK_PACKAGE_VERSION}"
+        TYPE SHA1)
 endif()
 
 message(STATUS "[SetupWindowsPackaging.cmake] CPACK_WIX_PRODUCT_GUID: ${CPACK_WIX_PRODUCT_GUID}")
 
 if(NOT CPACK_WIX_UPGRADE_GUID)
-    set(CPACK_WIX_UPGRADE_GUID "11111111-1111-1111-1111-111111111111")
+    if(MUSE_APP_NAME_MACHINE_READABLE STREQUAL "DBStudio")
+        # Stable since the first public Windows build, so existing installs upgrade in place.
+        set(CPACK_WIX_UPGRADE_GUID "11111111-1111-1111-1111-111111111111")
+    elseif(MUSE_APP_NAME_MACHINE_READABLE STREQUAL "DBScore")
+        # DB Studio and DB Score are separate products and must never share an upgrade code.
+        set(CPACK_WIX_UPGRADE_GUID "22222222-2222-2222-2222-222222222222")
+    else()
+        string(UUID CPACK_WIX_UPGRADE_GUID
+            NAMESPACE "6ba7b810-9dad-11d1-80b4-00c04fd430c8"
+            NAME "cn.drumbear.${MUSE_APP_NAME_MACHINE_READABLE}.upgrade"
+            TYPE SHA1)
+    endif()
 endif()
 
 message(STATUS "[SetupWindowsPackaging.cmake] CPACK_WIX_UPGRADE_GUID: ${CPACK_WIX_UPGRADE_GUID}")

@@ -36,7 +36,13 @@ using namespace muse::extensions::legacy;
 
 static Uri makeUri(const io::path_t& rootPath, const io::path_t& path)
 {
-    return Uri("extension://plugin/v1" + path.toQString().sliced(rootPath.size()).toLower().toStdString());
+    //! NOTE path_t stores UTF-8 bytes internally, so size() returns a byte count,
+    //! while QString::sliced() expects UTF-16 code-unit indices. Converting both
+    //! to QString first keeps the offset correct even when the install path
+    //! contains non-ASCII characters (e.g. "DB score制谱大师.app").
+    const QString rootPathStr = rootPath.toQString();
+    const QString pathStr = path.toQString();
+    return Uri("extension://plugin/v1" + pathStr.sliced(rootPathStr.size()).toLower().toStdString());
 }
 
 std::map<std::string /*codeKey*/, Uri> ExtPluginsLoader::loadCodekeyUriMap(const io::path_t& defPath, const io::path_t& extPath) const

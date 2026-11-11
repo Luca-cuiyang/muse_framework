@@ -28,6 +28,10 @@
 #include <QQmlContext>
 #include <QQmlComponent>
 
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
+
 #include "ui/graphicsapiprovider.h"
 #include "ui/iuiengine.h"
 
@@ -37,6 +41,20 @@
 
 using namespace muse;
 using namespace muse::ui;
+
+namespace {
+#ifdef Q_OS_WIN
+bool isRunningOnArm64Windows()
+{
+    USHORT processMachine = 0;
+    USHORT nativeMachine = 0;
+    if (IsWow64Process2(GetCurrentProcess(), &processMachine, &nativeMachine)) {
+        return nativeMachine == IMAGE_FILE_MACHINE_ARM64;
+    }
+    return false;
+}
+#endif
+}
 
 GuiApplication::GuiApplication(const std::shared_ptr<CmdOptions>& options)
     : BaseApplication(options)
@@ -72,6 +90,16 @@ void GuiApplication::doSetup(const std::shared_ptr<CmdOptions>& options)
 
 void GuiApplication::setupGraphicsApi()
 {
+#ifdef Q_OS_WIN
+    // DB Score: x64 程序运行在 ARM64 Windows（模拟）时，d3d11 渲染会失效导致界面白屏。
+    // 这里自动切换到软件渲染，保证虚拟机和正常 x64 电脑都能正常显示。
+    if (isRunningOnArm64Windows()) {
+        LOGI() << "Detected ARM64 Windows, forcing software rendering";
+        GraphicsApiProvider::setGraphicsApi(GraphicsApi::Software);
+        return;
+    }
+#endif
+
     //! NOTE Adjust GS Api
     //! We can hide this algorithm in GSApiProvider,
     //! but it is intentionally left here to illustrate what is happening.

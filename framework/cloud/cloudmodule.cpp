@@ -23,12 +23,7 @@
 #include "cloudmodule.h"
 
 #include "modularity/ioc.h"
-#include "interactive/iinteractiveuriregister.h"
 
-#ifdef MUSE_MODULE_CLOUD_DBSCORECLOUD
-#include "dbscorecloud/dbscorecloudservice.h"
-#endif
-#include "dbscoreaudio/dbscoreaudioservice.h"
 #include "dbscoreauthorization/dbscoreauthorizationservice.h"
 #include "internal/cloudconfiguration.h"
 
@@ -47,28 +42,14 @@ void CloudModule::registerExports()
     globalIoc()->registerExport<ICloudConfiguration>(moduleName(), m_cloudConfiguration);
     m_dbScoreAuthorizationService = std::make_shared<DbScoreAuthorizationService>();
     globalIoc()->registerExport<IDbScoreAuthorizationService>(moduleName(), m_dbScoreAuthorizationService);
-#ifdef MUSE_MODULE_CLOUD_DBSCORECLOUD
-    m_dbScoreCloudService = std::make_shared<DBScoreCloudService>(globalCtx());
-    globalIoc()->registerExport<IDBScoreCloudService>(moduleName(), m_dbScoreCloudService);
-#endif
-    m_dbScoreAudioService = std::make_shared<DBScoreAudioService>(globalCtx());
-    globalIoc()->registerExport<IDBScoreAudioService>(moduleName(), m_dbScoreAudioService);
 }
 
 void CloudModule::resolveImports()
 {
-    auto ir = globalIoc()->resolve<interactive::IInteractiveUriRegister>(moduleName());
-    if (ir) {
-        ir->registerQmlUri(Uri("muse://cloud/requireauthorization"), "Muse.Cloud", "RequireAuthorizationDialog");
-    }
 }
 
 void CloudModule::onInit(const IApplication::RunMode&)
 {
     m_cloudConfiguration->init();
     m_dbScoreAuthorizationService->init();
-#ifdef MUSE_MODULE_CLOUD_DBSCORECLOUD
-    m_dbScoreCloudService->init();
-#endif
-    m_dbScoreAudioService->init();
 }

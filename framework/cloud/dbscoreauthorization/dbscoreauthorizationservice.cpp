@@ -2,22 +2,21 @@
  * SPDX-License-Identifier: GPL-3.0-only
  * MuseScore-CLA-applies
  *
- * DB Score - 授权服务实现（激活码模式）
+ * DB Score - DB后台端账号服务
  */
 
 #include "dbscoreauthorizationservice.h"
 
 #include <QBuffer>
 #include <QCryptographicHash>
+#include <QDateTime>
 #include <QJsonDocument>
 #include <QJsonParseError>
 #include <QJsonValue>
-#include <QNetworkProxyFactory>
 #include <QSysInfo>
+#include <QTimer>
 #include <QUrl>
-#include <QUrlQuery>
 
-#include "defer.h"
 #include "log.h"
 #include "settings.h"
 
@@ -28,19 +27,28 @@ using namespace muse::async;
 
 static const std::string dbscore_authorization_module_name("cloud");
 
-static const Settings::Key TRIAL_START_MS_KEY(dbscore_authorization_module_name, "dbscoreAuthorization/trialStartMs");
-static const Settings::Key LICENSE_CACHE_KEY(dbscore_authorization_module_name, "dbscoreAuthorization/licenseCache");
-static const Settings::Key LAST_SYNC_MS_KEY(dbscore_authorization_module_name, "dbscoreAuthorization/lastSyncMs");
-static const Settings::Key PHONE_TOKEN_KEY(dbscore_authorization_module_name, "dbscoreAuthorization/phoneToken");
-static const Settings::Key PHONE_USER_KEY(dbscore_authorization_module_name, "dbscoreAuthorization/phoneUser");
+static const Settings::Key PHONE_TOKEN_KEY(
+    dbscore_authorization_module_name,
+    "dbscoreAuthorization/phoneToken");
+static const Settings::Key PHONE_USER_KEY(
+    dbscore_authorization_module_name,
+    "dbscoreAuthorization/phoneUser");
+static const Settings::Key LEGACY_LICENSE_KEY(
+    dbscore_authorization_module_name,
+    "dbscoreAuthorization/licenseCache");
+static const Settings::Key LEGACY_TRIAL_KEY(
+    dbscore_authorization_module_name,
+    "dbscoreAuthorization/trialStartMs");
+static const Settings::Key LEGACY_SYNC_KEY(
+    dbscore_authorization_module_name,
+    "dbscoreAuthorization/lastSyncMs");
 
-static const QString API_BASE_URL("https://drumbearai.com");
-static const QString ACTIVATE_URL(API_BASE_URL + "/api/dbscore/activate");
-static const QString LICENSE_URL(API_BASE_URL + "/api/dbscore/license");
-static const QString HEARTBEAT_URL(API_BASE_URL + "/api/dbscore/heartbeat");
-static const QString PURCHASE_PAGE_URL(API_BASE_URL + "/membership?plan=yearly");
-
-static constexpr qint64 TRIAL_DURATION_MS = 3 * 24 * 60 * 60 * 1000LL; // 3 天
+// Runtime environments may override the production endpoint for local backend testing.
+static const QString PLATFORM_API_BASE_URL(
+    qEnvironmentVariable(
+        "DB_PLATFORM_API_BASE_URL",
+        qEnvironmentVariable("DB_STUDIO_API_BASE_URL", "https://drumbear.cn")));
+static const QString PRODUCT_CODE("db-score");
 
 static QString hashDeviceId(const QByteArray& raw)
 {
@@ -50,14 +58,14 @@ static QString hashDeviceId(const QByteArray& raw)
 
     QByteArray normalized = raw.toLower();
     normalized.replace('-', "");
-
-    return QString::fromLatin1(QCryptographicHash::hash(normalized, QCryptographicHash::Sha256).toHex()).left(32);
+    return QString::fromLatin1(
+        QCryptographicHash::hash(normalized, QCryptographicHash::Sha256).toHex()).left(32);
 }
 
 static QJsonObject jsonObjectFromData(const QByteArray& data, QJsonParseError* err = nullptr)
 {
     QJsonParseError localErr;
-    QJsonDocument doc = QJsonDocument::fromJson(data, &localErr);
+    const QJsonDocument doc = QJsonDocument::fromJson(data, &localErr);
     if (err) {
         *err = localErr;
     }
@@ -65,42 +73,45 @@ static QJsonObject jsonObjectFromData(const QByteArray& data, QJsonParseError* e
     if (localErr.error != QJsonParseError::NoError || !doc.isObject()) {
         return QJsonObject();
     }
-
     return doc.object();
+}
+
+static bool dateIsActive(const QString& value)
+{
+    if (value.isEmpty()) {
+        return false;
+    }
+    const QDateTime end = QDateTime::fromString(value, Qt::ISODate);
+    return end.isValid() && end > QDateTime::currentDateTimeUtc();
 }
 
 DbScoreAuthorizationService::DbScoreAuthorizationService(QObject* parent)
     : QObject(parent)
 {
-    m_heartbeatTimer.setInterval(24 * 60 * 60 * 1000); // 每 24 小时心跳一次
-    m_heartbeatTimer.setSingleShot(false);
-
-    m_trialWatchTimer.setInterval(5 * 60 * 1000); // 每 5 分钟检查一次试用是否到期
-    m_trialWatchTimer.setSingleShot(false);
+    m_refreshTimer.setInterval(5 * 60 * 1000);
+    m_refreshTimer.setSingleShot(false);
 }
 
 void DbScoreAuthorizationService::init()
 {
-    // 系统可能残留已关闭的 VPN 代理（如 127.0.0.1:1082），
-    // 会导致授权请求一直挂起超时。这里统一走直连，由系统路由（TUN）转发。
-    QNetworkProxyFactory::setUseSystemConfiguration(false);
-
-    settings()->setDefaultValue(TRIAL_START_MS_KEY, Val(int64_t(0)));
-    settings()->setDefaultValue(LICENSE_CACHE_KEY, Val(std::string()));
-    settings()->setDefaultValue(LAST_SYNC_MS_KEY, Val(int64_t(0)));
     settings()->setDefaultValue(PHONE_TOKEN_KEY, Val(std::string()));
     settings()->setDefaultValue(PHONE_USER_KEY, Val(std::string()));
+    settings()->setLocalValue(LEGACY_LICENSE_KEY, Val(std::string()));
+    settings()->setLocalValue(LEGACY_TRIAL_KEY, Val(int64_t(0)));
+    settings()->setLocalValue(LEGACY_SYNC_KEY, Val(int64_t(0)));
 
-    (void)machineDeviceId();
-    applyOfflineGraceWindow();
     m_phoneToken = settings()->value(PHONE_TOKEN_KEY).toQString();
     m_phoneUser = loadPhoneUser();
     m_phoneLoggedIn = !m_phoneToken.isEmpty();
     notifyStateChanged();
 
     scheduleStartupRefresh();
-    scheduleHeartbeat();
-    scheduleTrialWatch();
+    QObject::connect(&m_refreshTimer, &QTimer::timeout, this, [this]() {
+        if (isPhoneLoggedIn()) {
+            (void)refresh();
+        }
+    });
+    m_refreshTimer.start();
 }
 
 IDbScoreAuthorizationService::LicenseState DbScoreAuthorizationService::state() const
@@ -110,113 +121,38 @@ IDbScoreAuthorizationService::LicenseState DbScoreAuthorizationService::state() 
 
 bool DbScoreAuthorizationService::hasProAccess() const
 {
-    LicenseState st = computeState();
-    return st == LicenseState::Active || st == LicenseState::Trial;
+    const LicenseState current = computeState();
+    return current == LicenseState::Active || current == LicenseState::Trial;
 }
 
-QString DbScoreAuthorizationService::licenseCode() const
+bool DbScoreAuthorizationService::isPermanentMember() const
 {
-    if (!isPhoneLoggedIn()) {
-        return QString();
-    }
-    return loadLicense().value("code").toString();
-}
-
-QString DbScoreAuthorizationService::memberType() const
-{
-    if (!isPhoneLoggedIn()) {
-        return QString();
-    }
-
-    QString mt = m_phoneUser.value("memberType").toString();
-    if (!mt.isEmpty() && mt != "free") {
-        return mt;
-    }
-
-    // 免费账号但激活码生效中：视为正式会员（等 /api/user 同步）
-    if (isLicenseActive()) {
-        return loadLicense().value("memberType").toString();
-    }
-    return QStringLiteral("free");
+    return isPhoneLoggedIn()
+           && (m_phoneUser.value("membershipKind").toString() == QStringLiteral("lifetime")
+               || m_phoneUser.value("isLifetime").toBool());
 }
 
 QDateTime DbScoreAuthorizationService::expireAt() const
 {
-    if (!isPhoneLoggedIn()) {
+    const QString value = m_phoneUser.value("membershipExpiresAt").toString();
+    if (value.isEmpty()) {
         return QDateTime();
     }
-
-    QString mt = m_phoneUser.value("memberType").toString();
-    if (!mt.isEmpty() && mt != "free") {
-        QString value = m_phoneUser.value("expireAt").toString();
-        if (value.isEmpty()) {
-            value = m_phoneUser.value("memberExpireAt").toString();
-        }
-        if (value.isEmpty()) {
-            return QDateTime();
-        }
-        return QDateTime::fromString(value, Qt::ISODate);
-    }
-
-    // 免费账号但激活码生效中：返回激活码到期时间
-    if (isLicenseActive()) {
-        QString value = loadLicense().value("expireAt").toString();
-        if (!value.isEmpty()) {
-            return QDateTime::fromString(value, Qt::ISODate);
-        }
-    }
-
-    return QDateTime();
-}
-
-QString DbScoreAuthorizationService::deviceId() const
-{
-    return machineDeviceId();
+    return QDateTime::fromString(value, Qt::ISODate);
 }
 
 double DbScoreAuthorizationService::trialHoursRemaining() const
 {
-    // 登录后优先用服务端试用计时
-    if (isPhoneLoggedIn()) {
-        QString endAt = m_phoneUser.value("trialEndAt").toString();
-        if (!endAt.isEmpty()) {
-            QDateTime end = QDateTime::fromString(endAt, Qt::ISODate);
-            if (end.isValid()) {
-                qint64 remainingMs = end.toMSecsSinceEpoch() - QDateTime::currentMSecsSinceEpoch();
-                if (remainingMs <= 0) {
-                    return 0.0;
-                }
-                return double(remainingMs) / (60.0 * 60.0 * 1000.0);
-            }
-        }
-
-        double daysLeft = m_phoneUser.value("trialDaysLeft").toDouble();
-        if (daysLeft > 0) {
-            return daysLeft * 24.0;
-        }
+    if (m_phoneUser.value("membershipKind").toString() != QStringLiteral("trial")) {
         return 0.0;
     }
 
-    qint64 start = trialStartMs();
-    if (start <= 0) {
+    const QDateTime end = expireAt();
+    if (!end.isValid()) {
         return 0.0;
     }
-
-    qint64 now = QDateTime::currentMSecsSinceEpoch();
-    qint64 remaining = TRIAL_DURATION_MS - (now - start);
-    if (remaining <= 0) {
-        return 0.0;
-    }
-
-    return double(remaining) / (60.0 * 60.0 * 1000.0);
-}
-
-bool DbScoreAuthorizationService::isTrialActive() const
-{
-    if (isPhoneLoggedIn()) {
-        return m_phoneUser.value("trialActive").toBool();
-    }
-    return trialHoursRemaining() > 0.0;
+    const qint64 remainingMs = end.toMSecsSinceEpoch() - QDateTime::currentMSecsSinceEpoch();
+    return remainingMs > 0 ? double(remainingMs) / (60.0 * 60.0 * 1000.0) : 0.0;
 }
 
 bool DbScoreAuthorizationService::isPhoneLoggedIn() const
@@ -224,33 +160,73 @@ bool DbScoreAuthorizationService::isPhoneLoggedIn() const
     return m_phoneLoggedIn && !m_phoneToken.isEmpty();
 }
 
-QString DbScoreAuthorizationService::phoneMasked() const
+QString DbScoreAuthorizationService::phoneNumber() const
 {
     return m_phoneUser.value("phone").toString();
 }
 
+QString DbScoreAuthorizationService::phoneMasked() const
+{
+    const QString phone = phoneNumber();
+    if (phone.size() == 11 && phone.at(0).isDigit()) {
+        return phone.left(3) + QStringLiteral("****") + phone.right(4);
+    }
+    return phone;
+}
+
 QString DbScoreAuthorizationService::phoneNickname() const
 {
-    return m_phoneUser.value("nickname").toString();
+    return m_phoneUser.value("displayName").toString();
 }
 
 QString DbScoreAuthorizationService::avatarUrl() const
 {
-    QString url = m_phoneUser.value("avatarUrl").toString();
-    if (url.isEmpty()) {
-        url = m_phoneUser.value("avatar").toString();
-    }
-    return url;
+    return m_phoneUser.value("avatarDataUrl").toString();
+}
+
+QString DbScoreAuthorizationService::accountCreatedAt() const
+{
+    return m_phoneUser.value("createdAt").toString();
+}
+
+QString DbScoreAuthorizationService::membershipPlan() const
+{
+    return m_phoneUser.value("membershipPlan").toString();
+}
+
+QString DbScoreAuthorizationService::membershipKind() const
+{
+    return m_phoneUser.value("membershipKind").toString();
+}
+
+QString DbScoreAuthorizationService::membershipStartsAt() const
+{
+    return m_phoneUser.value("membershipStartsAt").toString();
+}
+
+QString DbScoreAuthorizationService::membershipSource() const
+{
+    return m_phoneUser.value("membershipSource").toString();
+}
+
+int DbScoreAuthorizationService::renewalPriceFen() const
+{
+    return m_phoneUser.value("renewalPriceFen").toInt();
+}
+
+QString DbScoreAuthorizationService::renewalPlanName() const
+{
+    return m_phoneUser.value("renewalPlanName").toString();
+}
+
+QString DbScoreAuthorizationService::lastOtpDebugCode() const
+{
+    return m_otpDebugCode;
 }
 
 QString DbScoreAuthorizationService::apiBaseUrl() const
 {
-    return API_BASE_URL;
-}
-
-QString DbScoreAuthorizationService::purchasePageUrl() const
-{
-    return PURCHASE_PAGE_URL;
+    return PLATFORM_API_BASE_URL;
 }
 
 QString DbScoreAuthorizationService::currentVersion() const
@@ -258,100 +234,65 @@ QString DbScoreAuthorizationService::currentVersion() const
     return appVersion();
 }
 
-async::Promise<Ret> DbScoreAuthorizationService::activate(const QString& code, const QString& deviceName)
-{
-    return make_promise<Ret>([this, code, deviceName](auto resolve, auto /*reject*/) {
-        QString trimmed = code.trimmed();
-        if (trimmed.isEmpty()) {
-            resolve(make_ret(Ret::Code::BadArgs, std::string("激活码不能为空")));
-            return Promise<Ret>::dummy_result();
-        }
-
-        QJsonObject body;
-        body["code"] = trimmed;
-        body["deviceId"] = machineDeviceId();
-        body["deviceName"] = deviceName.isEmpty() ? defaultDeviceName() : deviceName;
-        body["appVersion"] = appVersion();
-
-        // 带登录态，让后端把激活码绑定到当前账号
-        doRequest(QUrl(ACTIVATE_URL), body, authHeaders()).onResolve(this, [this, resolve](const RetVal<QJsonObject>& result) {
-            if (!result.ret) {
-                resolve(result.ret);
-                return;
-            }
-
-            QJsonObject license = result.val.value("data").toObject().value("license").toObject();
-            if (!license.isEmpty()) {
-                saveLicense(license);
-                notifyStateChanged();
-            }
-
-            settings()->setLocalValue(LAST_SYNC_MS_KEY, Val(QDateTime::currentMSecsSinceEpoch()));
-            // 激活后刷新账号会员状态（后端将激活码绑定到账号后，/api/user 会返回 standard）
-            refreshPhoneUser().onResolve(this, [this, resolve](const Ret&) {
-                notifyStateChanged();
-                resolve(make_ok());
-            });
-        });
-
-        return Promise<Ret>::dummy_result();
-    });
-}
-
 async::Promise<Ret> DbScoreAuthorizationService::sendCode(const QString& phone)
 {
     return make_promise<Ret>([this, phone](auto resolve, auto /*reject*/) {
-        LOGD() << "DbScoreAuthorizationService::sendCode phone=" << phone;
-
         QJsonObject body;
         body["phone"] = phone;
-
-        doRequest(QUrl(API_BASE_URL + "/api/auth/send-code"), body).onResolve(this, [resolve](const RetVal<QJsonObject>& result) {
-            if (!result.ret) {
-                LOGE() << "sendCode failed: " << result.ret.text();
-                resolve(result.ret);
-                return;
+        m_otpDebugCode.clear();
+        doRequest(QUrl(PLATFORM_API_BASE_URL + "/api/auth/otp/send"), body)
+        .onResolve(this, [this, resolve](const RetVal<QJsonObject>& result) {
+            if (result.ret) {
+                m_otpDebugCode = result.val.value("debugCode").toString();
             }
-            LOGD() << "sendCode ok";
-            resolve(make_ok());
+            (void)resolve(result.ret);
         });
-
         return Promise<Ret>::dummy_result();
     });
 }
 
-async::Promise<Ret> DbScoreAuthorizationService::loginByPhone(const QString& phone, const QString& code)
+async::Promise<Ret> DbScoreAuthorizationService::loginByPhone(
+    const QString& phone,
+    const QString& code)
 {
     return make_promise<Ret>([this, phone, code](auto resolve, auto /*reject*/) {
         QJsonObject body;
         body["phone"] = phone;
         body["code"] = code;
+        body["deviceId"] = machineDeviceId();
+        body["deviceName"] = defaultDeviceName();
+        body["platform"] = platformCode();
+        body["productCode"] = PRODUCT_CODE;
 
-        doRequest(QUrl(API_BASE_URL + "/api/auth/login"), body).onResolve(this, [this, resolve](const RetVal<QJsonObject>& result) {
+        doRequest(QUrl(PLATFORM_API_BASE_URL + "/api/auth/otp/login"), body)
+        .onResolve(this, [this, resolve](const RetVal<QJsonObject>& result) {
             if (!result.ret) {
-                resolve(result.ret);
+                if (QString::fromStdString(result.ret.text()).contains(
+                        QStringLiteral("请先登录"))) {
+                    logout();
+                }
+                (void)resolve(result.ret);
                 return;
             }
 
             m_phoneToken = result.val.value("token").toString();
             if (m_phoneToken.isEmpty()) {
-                resolve(make_ret(Ret::Code::InternalError, std::string("登录返回异常")));
+                (void)resolve(make_ret(Ret::Code::InternalError, std::string("登录返回异常")));
                 return;
             }
 
-            m_phoneUser = result.val.value("user").toObject();
+            const QJsonObject user = result.val.value("user").toObject();
+            m_phoneUser["id"] = user.value("id");
+            m_phoneUser["phone"] = user.value("phone").toString();
+            m_phoneUser["displayName"] = user.value("displayName").toString();
+            m_phoneUser["createdAt"] = user.value("createdAt").toString();
+            m_phoneUser["avatarDataUrl"] = user.value("avatarDataUrl").toString();
             m_phoneLoggedIn = true;
+            m_otpDebugCode.clear();
             savePhoneSession();
-            setTrialStartNowIfNeeded();
 
-            LOGI() << "loginByPhone: token=" << m_phoneToken.left(8)
-                   << " loginUserHasMemberType=" << m_phoneUser.contains("memberType")
-                   << " loginUserHasTrial=" << m_phoneUser.contains("trialActive");
-
-            refreshPhoneUser().onResolve(this, [this, resolve](const Ret&) {
-                notifyStateChanged();
-                // 只要拿到 token 即视为登录成功，用户信息拉取失败不影响登录
-                resolve(make_ok());
+            refreshPhoneUser().onResolve(this, [resolve](const Ret& refreshRet) {
+                (void)resolve(refreshRet);
             });
         });
 
@@ -359,171 +300,85 @@ async::Promise<Ret> DbScoreAuthorizationService::loginByPhone(const QString& pho
     });
 }
 
-async::Promise<Ret> DbScoreAuthorizationService::registerByPhone(const QString& phone, const QString& code, const QString& nickname)
+async::Promise<Ret> DbScoreAuthorizationService::updateProfile(const QVariantMap& data)
 {
-    return make_promise<Ret>([this, phone, code, nickname](auto resolve, auto /*reject*/) {
-        QJsonObject body;
-        body["phone"] = phone;
-        body["code"] = code;
-        if (!nickname.isEmpty()) {
-            body["nickname"] = nickname;
-        }
-
-        doRequest(QUrl(API_BASE_URL + "/api/auth/register"), body).onResolve(this, [this, resolve](const RetVal<QJsonObject>& result) {
+    return make_promise<Ret>([this, data](auto resolve, auto /*reject*/) {
+        const QJsonObject body = QJsonObject::fromVariantMap(data);
+        doRequest(QUrl(PLATFORM_API_BASE_URL + "/api/customer/profile?productCode=" + PRODUCT_CODE),
+                  body,
+                  authHeaders())
+        .onResolve(this, [this, resolve](const RetVal<QJsonObject>& result) {
             if (!result.ret) {
-                resolve(result.ret);
+                if (QString::fromStdString(result.ret.text()).contains(
+                        QStringLiteral("请先登录"))) {
+                    logout();
+                }
+                (void)resolve(result.ret);
                 return;
             }
 
-            m_phoneToken = result.val.value("token").toString();
-            if (m_phoneToken.isEmpty()) {
-                resolve(make_ret(Ret::Code::InternalError, std::string("注册返回异常")));
-                return;
-            }
-
-            m_phoneUser = result.val.value("user").toObject();
-            m_phoneLoggedIn = true;
-            savePhoneSession();
-            setTrialStartNowIfNeeded();
-
-            refreshPhoneUser().onResolve(this, [this, resolve](const Ret&) {
+            // Apply the profile returned by the server immediately. Refreshing
+            // afterwards keeps membership data current, but the avatar must not
+            // wait for (or depend on) that second network request.
+            const QJsonObject user = result.val.value("user").toObject();
+            if (!user.isEmpty()) {
+                m_phoneUser["id"] = user.value("id");
+                m_phoneUser["phone"] = user.value("phone").toString();
+                m_phoneUser["displayName"] = user.value("displayName").toString();
+                m_phoneUser["createdAt"] = user.value("createdAt").toString();
+                m_phoneUser["avatarDataUrl"] = user.value("avatarDataUrl").toString();
+                m_phoneLoggedIn = true;
+                savePhoneSession();
                 notifyStateChanged();
-                resolve(make_ok());
+            }
+
+            refreshPhoneUser().onResolve(this, [resolve](const Ret& ret) {
+                (void)resolve(ret);
             });
         });
-
         return Promise<Ret>::dummy_result();
     });
 }
 
 async::Promise<Ret> DbScoreAuthorizationService::refresh()
 {
-    return make_promise<Ret>([this](auto resolve, auto /*reject*/) {
-        LOGI() << "refresh() phoneLoggedIn=" << isPhoneLoggedIn();
-
-        QUrl url(LICENSE_URL);
-        QUrlQuery query;
-        query.addQueryItem("deviceId", machineDeviceId());
-        url.setQuery(query);
-
-        if (isPhoneLoggedIn()) {
-            // 先带登录态同步激活码（触发后端把历史激活码补绑到账号），再刷新账号会员状态
-            doRequest(url, QJsonObject(), authHeaders()).onResolve(this, [this, resolve](const RetVal<QJsonObject>& result) {
-                if (result.ret) {
-                    QJsonObject dataObj = result.val.value("data").toObject();
-                    if (dataObj.contains("license")) {
-                        QJsonObject license = dataObj.value("license").toObject();
-                        if (license.isEmpty()) {
-                            clearStoredLicense();
-                        } else {
-                            saveLicense(license);
-                        }
-                    }
-                }
-
-                refreshPhoneUser().onResolve(this, [this, resolve](const Ret& ret) {
-                    notifyStateChanged();
-                    resolve(ret);
-                });
-            });
-            return Promise<Ret>::dummy_result();
-        }
-
-        doRequest(url, QJsonObject()).onResolve(this, [this, resolve](const RetVal<QJsonObject>& result) {
-            if (!result.ret) {
-                resolve(result.ret);
-                return;
-            }
-
-            QJsonObject dataObj = result.val.value("data").toObject();
-            if (dataObj.contains("license")) {
-                QJsonObject license = dataObj.value("license").toObject();
-                if (license.isEmpty()) {
-                    // 服务端明确表示无授权（可能被解绑/停用/删除）
-                    clearStoredLicense();
-                } else {
-                    saveLicense(license);
-                }
-                notifyStateChanged();
-            }
-
-            settings()->setLocalValue(LAST_SYNC_MS_KEY, Val(QDateTime::currentMSecsSinceEpoch()));
-            resolve(make_ok());
+    if (!isPhoneLoggedIn()) {
+        return make_promise<Ret>([](auto resolve, auto /*reject*/) {
+            return resolve(make_ok());
         });
-
-        return Promise<Ret>::dummy_result();
-    });
+    }
+    return refreshPhoneUser();
 }
 
-void DbScoreAuthorizationService::clearLicense()
-{
-    clearStoredLicense();
-    notifyStateChanged();
-}
-
-async::Promise<RetVal<QVariantMap> > DbScoreAuthorizationService::checkForUpdate()
-{
-    return make_promise<RetVal<QVariantMap> >([this](auto resolve, auto /*reject*/) {
-        doRequest(QUrl(API_BASE_URL + "/api/software"), QJsonObject()).onResolve(this, [this, resolve](const RetVal<QJsonObject>& result) {
-            if (!result.ret) {
-                resolve(RetVal<QVariantMap>::make_ret(result.ret));
-                return;
-            }
-
-            QVariantMap info;
-            QString key = updatePlatformKey();
-            QJsonObject pkg = result.val.value(key).toObject();
-            QString latest = pkg.value("version").toString();
-            QString url = pkg.value("url").toString();
-            QString notes = pkg.value("notes").toString();
-
-            if (!url.isEmpty() && url.startsWith('/')) {
-                url = API_BASE_URL + url;
-            }
-
-            info["latestVersion"] = latest;
-            info["downloadUrl"] = url;
-            info["notes"] = notes;
-
-            bool hasUpdate = false;
-            if (!latest.isEmpty()) {
-                Version current = application()->version();
-                Version remote(latest.toStdString());
-                hasUpdate = current < remote;
-            }
-            info["hasUpdate"] = hasUpdate;
-
-            resolve(RetVal<QVariantMap>::make_ok(info));
-        });
-
-        return Promise<RetVal<QVariantMap> >::dummy_result();
-    });
-}
-
-async::Promise<RetVal<QVariantMap> > DbScoreAuthorizationService::apiGet(const QString& path)
+async::Promise<RetVal<QVariantMap> > DbScoreAuthorizationService::accountGet(const QString& path)
 {
     return make_promise<RetVal<QVariantMap> >([this, path](auto resolve, auto /*reject*/) {
-        doRequest(QUrl(API_BASE_URL + path), QJsonObject(), authHeaders()).onResolve(this, [resolve](const RetVal<QJsonObject>& result) {
+        doRequest(QUrl(PLATFORM_API_BASE_URL + path), QJsonObject(), authHeaders())
+        .onResolve(this, [resolve](const RetVal<QJsonObject>& result) {
             if (!result.ret) {
-                resolve(RetVal<QVariantMap>::make_ret(result.ret));
+                (void)resolve(RetVal<QVariantMap>::make_ret(result.ret));
                 return;
             }
-            resolve(RetVal<QVariantMap>::make_ok(result.val.toVariantMap()));
+            (void)resolve(RetVal<QVariantMap>::make_ok(result.val.toVariantMap()));
         });
         return Promise<RetVal<QVariantMap> >::dummy_result();
     });
 }
 
-async::Promise<RetVal<QVariantMap> > DbScoreAuthorizationService::apiPost(const QString& path, const QVariantMap& body)
+async::Promise<RetVal<QVariantMap> > DbScoreAuthorizationService::accountPost(
+    const QString& path,
+    const QVariantMap& body)
 {
     return make_promise<RetVal<QVariantMap> >([this, path, body](auto resolve, auto /*reject*/) {
-        QJsonObject json = QJsonObject::fromVariantMap(body);
-        doRequest(QUrl(API_BASE_URL + path), json, authHeaders()).onResolve(this, [resolve](const RetVal<QJsonObject>& result) {
+        doRequest(QUrl(PLATFORM_API_BASE_URL + path),
+                  QJsonObject::fromVariantMap(body),
+                  authHeaders())
+        .onResolve(this, [resolve](const RetVal<QJsonObject>& result) {
             if (!result.ret) {
-                resolve(RetVal<QVariantMap>::make_ret(result.ret));
+                (void)resolve(RetVal<QVariantMap>::make_ret(result.ret));
                 return;
             }
-            resolve(RetVal<QVariantMap>::make_ok(result.val.toVariantMap()));
+            (void)resolve(RetVal<QVariantMap>::make_ok(result.val.toVariantMap()));
         });
         return Promise<RetVal<QVariantMap> >::dummy_result();
     });
@@ -531,27 +386,32 @@ async::Promise<RetVal<QVariantMap> > DbScoreAuthorizationService::apiPost(const 
 
 void DbScoreAuthorizationService::logout()
 {
+    if (!m_phoneToken.isEmpty()) {
+        QJsonObject body;
+        body["revoke"] = true;
+        (void)doRequest(
+            QUrl(PLATFORM_API_BASE_URL + "/api/customer/logout"),
+            body,
+            authHeaders());
+    }
+
     m_phoneToken.clear();
     m_phoneUser = QJsonObject();
     m_phoneLoggedIn = false;
     settings()->setLocalValue(PHONE_TOKEN_KEY, Val(std::string()));
     settings()->setLocalValue(PHONE_USER_KEY, Val(std::string()));
-    // 退出登录后，激活码会员状态一并清除，避免残留显示
-    clearStoredLicense();
+    settings()->sync();
     notifyStateChanged();
 }
 
 QString DbScoreAuthorizationService::authTokenHeader() const
 {
-    if (m_phoneToken.isEmpty()) {
-        return QString();
-    }
-    return QStringLiteral("Bearer ") + m_phoneToken;
+    return m_phoneToken.isEmpty() ? QString() : QStringLiteral("Bearer ") + m_phoneToken;
 }
 
-network::RequestHeaders DbScoreAuthorizationService::authHeaders() const
+RequestHeaders DbScoreAuthorizationService::authHeaders() const
 {
-    network::RequestHeaders headers;
+    RequestHeaders headers;
     if (!m_phoneToken.isEmpty()) {
         headers.rawHeaders["Authorization"] = authTokenHeader().toUtf8();
     }
@@ -561,31 +421,51 @@ network::RequestHeaders DbScoreAuthorizationService::authHeaders() const
 async::Promise<Ret> DbScoreAuthorizationService::refreshPhoneUser()
 {
     return make_promise<Ret>([this](auto resolve, auto /*reject*/) {
-        LOGI() << "refreshPhoneUser() called, token=" << m_phoneToken.left(8);
-
-        network::RequestHeaders headers;
-        headers.rawHeaders["Authorization"] = authTokenHeader().toUtf8();
-
-        doRequest(QUrl(API_BASE_URL + "/api/user"), QJsonObject(), headers).onResolve(this, [this, resolve](const RetVal<QJsonObject>& result) {
+        doRequest(QUrl(PLATFORM_API_BASE_URL + "/api/customer/profile?productCode=" + PRODUCT_CODE),
+                  QJsonObject(),
+                  authHeaders())
+        .onResolve(this, [this, resolve](const RetVal<QJsonObject>& result) {
             if (!result.ret) {
-                resolve(result.ret);
+                if (QString::fromStdString(result.ret.text()).contains(
+                        QStringLiteral("请先登录"))) {
+                    logout();
+                }
+                (void)resolve(result.ret);
                 return;
             }
 
-            QJsonObject user = result.val.value("user").toObject();
-            if (!user.isEmpty()) {
-                m_phoneUser = user;
-                savePhoneSession();
-                notifyStateChanged();
+            const QJsonObject user = result.val.value("user").toObject();
+            const QJsonObject membership = result.val.value("membership").toObject();
+            const QJsonObject renewalPlan = result.val.value("renewalPlan").toObject();
+            if (user.value("id").isUndefined() || user.value("id").isNull()) {
+                logout();
+                (void)resolve(make_ret(
+                    Ret::Code::CloudFirst,
+                    std::string("登录已过期，请重新登录")));
+                return;
             }
-
-            LOGI() << "refreshPhoneUser: memberType=" << m_phoneUser.value("memberType").toString()
-                   << " trialActive=" << m_phoneUser.value("trialActive").toBool()
-                   << " trialDaysLeft=" << m_phoneUser.value("trialDaysLeft").toInt();
-
-            resolve(make_ok());
+            QJsonObject next;
+            next["id"] = user.value("id");
+            next["phone"] = user.value("phone").toString();
+            next["displayName"] = user.value("displayName").toString();
+            next["createdAt"] = user.value("createdAt").toString();
+            next["avatarDataUrl"] = user.value("avatarDataUrl").toString();
+            next["membershipPlan"] = membership.value("plan").toString();
+            next["membershipKind"] = membership.value("kind").toString();
+            next["membershipStartsAt"] = membership.value("startsAt").toString();
+            next["membershipExpiresAt"] = membership.value("expiresAt").toString();
+            next["membershipSource"] = membership.value("source").toString();
+            next["membershipStatus"] = membership.value("status").toString();
+            next["isLifetime"] = membership.value("isLifetime").toBool();
+            next["product"] = membership.value("product").toString();
+            next["renewalPriceFen"] = renewalPlan.value("priceFen").toInt();
+            next["renewalPlanName"] = renewalPlan.value("name").toString();
+            m_phoneUser = next;
+            m_phoneLoggedIn = true;
+            savePhoneSession();
+            notifyStateChanged();
+            (void)resolve(make_ok());
         });
-
         return Promise<Ret>::dummy_result();
     });
 }
@@ -595,16 +475,15 @@ async::Notification DbScoreAuthorizationService::stateChanged() const
     return m_stateChanged;
 }
 
-async::Promise<RetVal<QJsonObject> > DbScoreAuthorizationService::doRequest(const QUrl& url, const QJsonObject& body,
-                                                                             const network::RequestHeaders& extraHeaders)
+async::Promise<RetVal<QJsonObject> > DbScoreAuthorizationService::doRequest(
+    const QUrl& url,
+    const QJsonObject& body,
+    const RequestHeaders& extraHeaders)
 {
     return make_promise<RetVal<QJsonObject> >([this, url, body, extraHeaders](auto resolve, auto /*reject*/) {
-        LOGI() << "doRequest url=" << url.toString();
-
         auto received = std::make_shared<QBuffer>();
         auto timedOut = std::make_shared<bool>(false);
 
-        // 防止请求挂起导致 UI 一直 busy
         QTimer* timeoutTimer = new QTimer(this);
         timeoutTimer->setSingleShot(true);
         QObject::connect(timeoutTimer, &QTimer::timeout, this, [resolve, timedOut, timeoutTimer]() {
@@ -613,14 +492,15 @@ async::Promise<RetVal<QJsonObject> > DbScoreAuthorizationService::doRequest(cons
             }
             *timedOut = true;
             timeoutTimer->deleteLater();
-            resolve(RetVal<QJsonObject>::make_ret(Ret::Code::InternalError, std::string("请求超时，请检查网络后重试")));
+            (void)resolve(RetVal<QJsonObject>::make_ret(
+                Ret::Code::InternalError, std::string("请求超时，请检查网络后重试")));
         });
         timeoutTimer->start(15000);
 
         RequestHeaders headers;
         headers.rawHeaders["Content-Type"] = "application/json";
         headers.rawHeaders["Accept"] = "application/json";
-        headers.rawHeaders["User-Agent"] = QString("DBScore/" + appVersion()).toUtf8();
+        headers.rawHeaders["User-Agent"] = QString("DBStudio/" + appVersion()).toUtf8();
         for (auto it = extraHeaders.rawHeaders.constBegin(); it != extraHeaders.rawHeaders.constEnd(); ++it) {
             headers.rawHeaders[it.key()] = it.value();
         }
@@ -629,86 +509,55 @@ async::Promise<RetVal<QJsonObject> > DbScoreAuthorizationService::doRequest(cons
         if (body.isEmpty()) {
             progress = networkManager()->get(url, received, headers);
         } else {
-            QByteArray json = QJsonDocument(body).toJson(QJsonDocument::Compact);
             auto outgoing = std::make_shared<QBuffer>();
-            outgoing->setData(json);
+            outgoing->setData(QJsonDocument(body).toJson(QJsonDocument::Compact));
             progress = networkManager()->post(url, outgoing, received, headers);
         }
 
         if (!progress.ret) {
             timeoutTimer->stop();
             timeoutTimer->deleteLater();
-            resolve(RetVal<QJsonObject>::make_ret(progress.ret));
+            (void)resolve(RetVal<QJsonObject>::make_ret(progress.ret));
             return Promise<RetVal<QJsonObject> >::dummy_result();
         }
 
-        progress.val.finished().onReceive(this, [this, url, received, resolve, timeoutTimer, timedOut](const ProgressResult& res) {
-            if (*timedOut) {
-                return;
-            }
-            *timedOut = true;
-            timeoutTimer->stop();
-            timeoutTimer->deleteLater();
-
-            LOGI() << "doRequest finished url=" << url.toString() << " ret=" << res.ret.success();
-
-            if (!res.ret) {
-                // 后端返回 4xx 时，尝试从响应体里取更友好的错误提示
-                QJsonParseError err;
-                QJsonObject errObj = jsonObjectFromData(received->data(), &err);
-                QString errMsg;
-                if (err.error == QJsonParseError::NoError && !errObj.isEmpty()) {
-                    errMsg = errObj.value("message").toString();
-                    if (errMsg.isEmpty()) {
-                        errMsg = errObj.value("error").toString();
-                    }
+        progress.val.finished().onReceive(
+            this,
+            [received, resolve, timeoutTimer, timedOut](const ProgressResult& result) {
+                if (*timedOut) {
+                    return;
                 }
-                if (errMsg.isEmpty()) {
-                    resolve(RetVal<QJsonObject>::make_ret(res.ret));
-                } else {
-                    resolve(RetVal<QJsonObject>::make_ret(Ret::Code::InternalError, errMsg.toStdString()));
+                *timedOut = true;
+                timeoutTimer->stop();
+                timeoutTimer->deleteLater();
+
+                if (!result.ret) {
+                    const QJsonObject error =
+                        jsonObjectFromData(received->data());
+                    const QString message =
+                        error.value("message").toString().isEmpty()
+                            ? error.value("error").toString()
+                            : error.value("message").toString();
+                    (void)resolve(RetVal<QJsonObject>::make_ret(
+                        result.ret, message.toStdString()));
+                    return;
                 }
-                return;
-            }
 
-            QJsonParseError err;
-            QJsonObject obj = jsonObjectFromData(received->data(), &err);
-            if (err.error != QJsonParseError::NoError || obj.isEmpty()) {
-                resolve(RetVal<QJsonObject>::make_ret(Ret::Code::InternalError, std::string("服务器返回异常")));
-                return;
-            }
-
-            // 后端各接口返回格式不统一：
-            // - 部分接口带 success:true/false（如 /api/dbscore/license、/api/software、/api/dbscore/activate）
-            // - /api/user 成功时没有 success 字段，失败时才带 error/code
-            // 因此：有 success 字段时以它为准；没有 success 字段时，仅当存在 error/message 才判定失败。
-            bool hasSuccessField = obj.contains("success");
-            bool success = obj.value("success").toBool(false);
-            QString code = obj.value("code").toString();
-            QString message = obj.value("message").toString();
-            QString error = obj.value("error").toString();
-
-            bool failed = false;
-            if (hasSuccessField) {
-                failed = !success;
-            } else if (!error.isEmpty() || !message.isEmpty()) {
-                failed = true;
-            }
-
-            if (failed) {
-                QString errMsg = message;
-                if (errMsg.isEmpty()) {
-                    errMsg = error;
+                const QJsonObject object = jsonObjectFromData(received->data());
+                if (object.isEmpty()) {
+                    (void)resolve(RetVal<QJsonObject>::make_ret(
+                        Ret::Code::InternalError, std::string("服务器返回异常")));
+                    return;
                 }
-                if (errMsg.isEmpty()) {
-                    errMsg = code;
-                }
-                resolve(RetVal<QJsonObject>::make_ret(Ret::Code::InternalError, errMsg.toStdString()));
-                return;
-            }
 
-            resolve(RetVal<QJsonObject>::make_ok(obj));
-        });
+                if (!object.value("error").toString().isEmpty()) {
+                    (void)resolve(RetVal<QJsonObject>::make_ret(
+                        Ret::Code::InternalError,
+                        object.value("error").toString().toStdString()));
+                    return;
+                }
+                (void)resolve(RetVal<QJsonObject>::make_ok(object));
+            });
 
         return Promise<RetVal<QJsonObject> >::dummy_result();
     });
@@ -716,8 +565,6 @@ async::Promise<RetVal<QJsonObject> > DbScoreAuthorizationService::doRequest(cons
 
 network::INetworkManagerPtr DbScoreAuthorizationService::networkManager()
 {
-    // 必须保存为成员：若作为临时对象，请求发出后对象被销毁，网络请求会被中断，
-    // 导致 finished 永远不触发、界面一直等待超时。
     if (!m_networkManager) {
         m_networkManager = networkManagerCreator()->makeNetworkManager();
     }
@@ -733,7 +580,6 @@ QString DbScoreAuthorizationService::machineDeviceId() const
     QByteArray raw(QSysInfo::machineUniqueId());
     m_deviceId = hashDeviceId(raw);
     if (m_deviceId.isEmpty()) {
-        // 极少数平台可能拿不到 machineUniqueId，退回 clientId
         m_deviceId = hashDeviceId(QByteArray::fromStdString(cloudConfiguration()->clientId()));
     }
     m_deviceIdLoaded = true;
@@ -742,210 +588,102 @@ QString DbScoreAuthorizationService::machineDeviceId() const
 
 QString DbScoreAuthorizationService::defaultDeviceName() const
 {
-    QString name = QSysInfo::machineHostName();
+    const QString name = QSysInfo::machineHostName();
     QString product = QSysInfo::prettyProductName();
     if (product.isEmpty()) {
         product = QSysInfo::productType();
     }
-
     if (name.isEmpty()) {
         return product;
     }
     if (product.isEmpty()) {
         return name;
     }
-
     return name + " (" + product + ")";
 }
 
 QString DbScoreAuthorizationService::appVersion() const
 {
-    QString version = QString::fromStdString(application()->version().toStdString());
-    if (version.isEmpty()) {
-        return QStringLiteral("5.0.0");
-    }
-
-    return version;
+    const QString version = QString::fromStdString(application()->version().toStdString());
+    return version.isEmpty() ? QStringLiteral("5.0.1") : version;
 }
 
-QString DbScoreAuthorizationService::updatePlatformKey() const
+QString DbScoreAuthorizationService::platformCode() const
 {
 #ifdef Q_OS_MACOS
-    return QStringLiteral("mac");
+    return QStringLiteral("macos");
 #elif defined(Q_OS_WIN)
-    return QStringLiteral("win");
+    return QStringLiteral("windows");
 #else
-    return QStringLiteral("linux");
+    return QStringLiteral("other");
 #endif
-}
-
-void DbScoreAuthorizationService::setTrialStartNowIfNeeded()
-{
-    qint64 start = trialStartMs();
-    if (start <= 0) {
-        settings()->setLocalValue(TRIAL_START_MS_KEY, Val(QDateTime::currentMSecsSinceEpoch()));
-    }
 }
 
 void DbScoreAuthorizationService::scheduleStartupRefresh()
 {
-    LOGI() << "scheduleStartupRefresh scheduled";
-
-    // 等主事件循环启动后再发起首次授权同步
-    QTimer::singleShot(3000, this, [this]() {
-        LOGI() << "scheduleStartupRefresh fired";
-        (void)refresh();
-    });
-}
-
-void DbScoreAuthorizationService::scheduleHeartbeat()
-{
-    QObject::connect(&m_heartbeatTimer, &QTimer::timeout, this, [this]() {
-        (void)refresh();
-    });
-    m_heartbeatTimer.start();
-}
-
-void DbScoreAuthorizationService::scheduleTrialWatch()
-{
-    m_trialWasActive = isTrialActive();
-
-    QObject::connect(&m_trialWatchTimer, &QTimer::timeout, this, [this]() {
-        bool active = isTrialActive();
-        if (m_trialWasActive && !active) {
-            // 试用从有效变为过期：立即锁定并通知界面
-            notifyStateChanged();
+    QTimer::singleShot(1500, this, [this]() {
+        if (isPhoneLoggedIn()) {
+            (void)refresh();
         }
-        m_trialWasActive = active;
     });
-    m_trialWatchTimer.start();
-}
-
-void DbScoreAuthorizationService::applyOfflineGraceWindow()
-{
-    constexpr qint64 GRACE_MS = 7 * 24 * 60 * 60 * 1000LL;
-
-    qint64 lastSync = settings()->value(LAST_SYNC_MS_KEY).toInt64();
-    if (lastSync <= 0) {
-        return;
-    }
-
-    QJsonObject license = loadLicense();
-    if (license.isEmpty()) {
-        return;
-    }
-
-    if (QDateTime::currentMSecsSinceEpoch() - lastSync > GRACE_MS) {
-        // 超过离线宽限期仍未联网校验，暂停会员权益
-        clearStoredLicense();
-    }
-}
-
-qint64 DbScoreAuthorizationService::trialStartMs() const
-{
-    return settings()->value(TRIAL_START_MS_KEY).toInt64();
-}
-
-QJsonObject DbScoreAuthorizationService::loadLicense() const
-{
-    QString json = settings()->value(LICENSE_CACHE_KEY).toQString();
-    if (json.isEmpty()) {
-        return QJsonObject();
-    }
-
-    QJsonParseError err;
-    QJsonObject obj = jsonObjectFromData(json.toUtf8(), &err);
-    if (err.error != QJsonParseError::NoError) {
-        return QJsonObject();
-    }
-
-    return obj;
-}
-
-void DbScoreAuthorizationService::saveLicense(const QJsonObject& license) const
-{
-    QByteArray json = QJsonDocument(license).toJson(QJsonDocument::Compact);
-    settings()->setLocalValue(LICENSE_CACHE_KEY, Val(std::string(json.constData(), json.size())));
-}
-
-void DbScoreAuthorizationService::clearStoredLicense()
-{
-    settings()->setLocalValue(LICENSE_CACHE_KEY, Val(std::string()));
 }
 
 QJsonObject DbScoreAuthorizationService::loadPhoneUser() const
 {
-    QString json = settings()->value(PHONE_USER_KEY).toQString();
+    const QString json = settings()->value(PHONE_USER_KEY).toQString();
     if (json.isEmpty()) {
         return QJsonObject();
     }
-
-    QJsonParseError err;
-    QJsonObject obj = jsonObjectFromData(json.toUtf8(), &err);
-    if (err.error != QJsonParseError::NoError) {
-        return QJsonObject();
-    }
-
-    return obj;
+    return jsonObjectFromData(json.toUtf8());
 }
 
 void DbScoreAuthorizationService::savePhoneSession()
 {
     settings()->setLocalValue(PHONE_TOKEN_KEY, Val(m_phoneToken.toStdString()));
-
-    QByteArray json = QJsonDocument(m_phoneUser).toJson(QJsonDocument::Compact);
-    settings()->setLocalValue(PHONE_USER_KEY, Val(std::string(json.constData(), json.size())));
+    const QByteArray json = QJsonDocument(m_phoneUser).toJson(QJsonDocument::Compact);
+    settings()->setLocalValue(
+        PHONE_USER_KEY,
+        Val(std::string(json.constData(), json.size())));
+    settings()->sync();
 }
 
-bool DbScoreAuthorizationService::isLicenseActive() const
+bool DbScoreAuthorizationService::isTrialActive() const
 {
-    QJsonObject license = loadLicense();
-    if (license.isEmpty() || license.value("status").toString() != "active") {
-        return false;
-    }
-
-    // 本产品为年度会员（365 天），不存在永久授权；没有到期时间不视为有效会员
-    QString expire = license.value("expireAt").toString();
-    if (expire.isEmpty()) {
-        return false;
-    }
-
-    QDateTime expireAt = QDateTime::fromString(expire, Qt::ISODate);
-    return expireAt.isValid() && expireAt > QDateTime::currentDateTimeUtc();
+    return membershipKind() == QStringLiteral("trial")
+           && dateIsActive(m_phoneUser.value("membershipExpiresAt").toString());
 }
 
 IDbScoreAuthorizationService::LicenseState DbScoreAuthorizationService::computeState() const
 {
-    // 未登录：不判定会员，界面按“未登录”处理
     if (!isPhoneLoggedIn()) {
         return LicenseState::TrialExpired;
     }
 
-    // 已登录：账号为正式会员
-    QString memberType = m_phoneUser.value("memberType").toString();
-    if (!memberType.isEmpty() && memberType != "free") {
-        QString expire = m_phoneUser.value("expireAt").toString();
-        if (expire.isEmpty()) {
-            expire = m_phoneUser.value("memberExpireAt").toString();
-        }
-        if (expire.isEmpty()) {
-            // 年卡必须有到期时间，没有则视为过期
-            return LicenseState::Expired;
-        }
-        QDateTime expireAt = QDateTime::fromString(expire, Qt::ISODate);
-        if (expireAt.isValid() && expireAt > QDateTime::currentDateTimeUtc()) {
-            return LicenseState::Active;
-        }
+    const QString status = m_phoneUser.value("membershipStatus").toString();
+    if (status == QStringLiteral("revoked")) {
+        return LicenseState::Revoked;
+    }
+    if (status == QStringLiteral("expired")) {
         return LicenseState::Expired;
     }
 
-    // 已登录免费账号：激活码刚激活但 /api/user 尚未同步时，用本地 license 兜底
-    if (isLicenseActive()) {
-        return LicenseState::Active;
+    if (isPermanentMember()) {
+        return status == QStringLiteral("active") ? LicenseState::Active
+                                                  : LicenseState::Expired;
     }
 
-    // 免费账号：3 天试用
-    return isTrialActive() ? LicenseState::Trial : LicenseState::TrialExpired;
+    const QString kind = membershipKind();
+    if (kind == QStringLiteral("annual")) {
+        return status == QStringLiteral("active")
+               && dateIsActive(m_phoneUser.value("membershipExpiresAt").toString())
+            ? LicenseState::Active
+            : LicenseState::Expired;
+    }
+    if (kind == QStringLiteral("trial")) {
+        return isTrialActive() ? LicenseState::Trial : LicenseState::TrialExpired;
+    }
+
+    return LicenseState::TrialExpired;
 }
 
 void DbScoreAuthorizationService::notifyStateChanged()

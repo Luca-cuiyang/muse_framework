@@ -199,8 +199,16 @@ public:
             return false;
         }
 
-        if (initLib() != ms_Result_OK) {
-            LOGE() << "Could not init lib";
+        try {
+            if (initLib() != ms_Result_OK) {
+                LOGE() << "Could not init lib";
+                return false;
+            }
+        } catch (const std::exception& e) {
+            LOGE() << "MuseSampler init exception: " << e.what();
+            return false;
+        } catch (...) {
+            LOGE() << "MuseSampler init unknown exception";
             return false;
         }
 

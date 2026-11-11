@@ -25,6 +25,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
+#include <exception>
 
 #include "global/types/bytearray.h"
 #include "log.h"
@@ -263,60 +264,85 @@ bool AudioFileDecoder::decodeOgg(const std::vector<uint8_t>& bytes)
 
 bool AudioFileDecoder::decodeMp3(const std::vector<uint8_t>& bytes)
 {
-    drmp3 mp3;
-    if (!drmp3_init_memory(&mp3, bytes.data(), bytes.size(), nullptr)) {
+    try {
+        drmp3 mp3;
+        if (!drmp3_init_memory(&mp3, bytes.data(), bytes.size(), nullptr)) {
+            return false;
+        }
+
+        m_channels = mp3.channels;
+        m_sampleRate = mp3.sampleRate;
+        const uint64_t frames = drmp3_get_pcm_frame_count(&mp3);
+        m_data.resize(frames * m_channels);
+        const uint64_t read = drmp3_read_pcm_frames_f32(&mp3, frames, m_data.data());
+        drmp3_uninit(&mp3);
+
+        if (read == 0 || m_channels == 0 || m_sampleRate == 0) {
+            return false;
+        }
+
+        // VBR 等情况下估算帧数可能偏大，按实际读取量裁剪，避免误判失败
+        if (read != frames) {
+            m_data.resize(read * m_channels);
+        }
+
+        return true;
+    } catch (const std::exception& e) {
+        // 损坏的 VBR 头可能给出异常巨大的帧数，resize 抛 bad_alloc；
+        // 这里必须降级为“解码失败”，不能让它冒泡成进程崩溃。
+        LOGE() << "MP3 decode failed: " << e.what();
+        m_data.clear();
+        m_channels = 0;
+        m_sampleRate = 0;
         return false;
     }
-
-    m_channels = mp3.channels;
-    m_sampleRate = mp3.sampleRate;
-    const uint64_t frames = drmp3_get_pcm_frame_count(&mp3);
-    m_data.resize(frames * m_channels);
-    const uint64_t read = drmp3_read_pcm_frames_f32(&mp3, frames, m_data.data());
-    drmp3_uninit(&mp3);
-
-    if (read == 0 || m_channels == 0 || m_sampleRate == 0) {
-        return false;
-    }
-
-    // VBR 等情况下估算帧数可能偏大，按实际读取量裁剪，避免误判失败
-    if (read != frames) {
-        m_data.resize(read * m_channels);
-    }
-
-    return true;
 }
 
 bool AudioFileDecoder::decodeFfmpeg(const std::vector<uint8_t>& bytes)
 {
-    FfmpegDecoder decoder;
-    std::vector<float> interleaved;
-    unsigned int channels = 0;
-    unsigned int sampleRate = 0;
+    try {
+        FfmpegDecoder decoder;
+        std::vector<float> interleaved;
+        unsigned int channels = 0;
+        unsigned int sampleRate = 0;
 
-    if (!decoder.decode(bytes.data(), bytes.size(), interleaved, channels, sampleRate)) {
+        if (!decoder.decode(bytes.data(), bytes.size(), interleaved, channels, sampleRate)) {
+            return false;
+        }
+
+        if (interleaved.empty() || channels == 0 || sampleRate == 0) {
+            return false;
+        }
+
+        m_channels = channels;
+        m_sampleRate = sampleRate;
+        m_data = std::move(interleaved);
+        return true;
+    } catch (const std::exception& e) {
+        LOGE() << "FFmpeg decode failed: " << e.what();
+        m_data.clear();
+        m_channels = 0;
+        m_sampleRate = 0;
         return false;
     }
-
-    if (interleaved.empty() || channels == 0 || sampleRate == 0) {
-        return false;
-    }
-
-    m_channels = channels;
-    m_sampleRate = sampleRate;
-    m_data = std::move(interleaved);
-    return true;
 }
 
 void AudioFileDecoder::crop(double startSeconds, double endSeconds)
 {
-    if (!isValid()) {
+    if (!isValid() || m_channels == 0) {
         return;
     }
 
     const uint64_t totalFrames = frames();
-    uint64_t startFrame = uint64_t(std::max(0.0, startSeconds * m_sampleRate));
-    uint64_t endFrame = endSeconds > 0.0 ? uint64_t(endSeconds * m_sampleRate) : totalFrames;
+    if (totalFrames == 0) {
+        m_data.clear();
+        return;
+    }
+
+    const double safeStart = std::isfinite(startSeconds) ? std::max(0.0, startSeconds) : 0.0;
+    const double safeEnd = std::isfinite(endSeconds) ? endSeconds : 0.0;
+    uint64_t startFrame = uint64_t(safeStart * m_sampleRate);
+    uint64_t endFrame = safeEnd > 0.0 ? uint64_t(safeEnd * m_sampleRate) : totalFrames;
 
     startFrame = std::min(startFrame, totalFrames);
     endFrame = std::min(endFrame, totalFrames);
@@ -325,8 +351,14 @@ void AudioFileDecoder::crop(double startSeconds, double endSeconds)
         return;
     }
 
-    const size_t start = startFrame * m_channels;
-    const size_t end = endFrame * m_channels;
+    const size_t totalSamples = m_data.size();
+    const size_t start = std::min<size_t>(size_t(startFrame * m_channels), totalSamples);
+    const size_t end = std::min<size_t>(size_t(endFrame * m_channels), totalSamples);
+    if (end <= start) {
+        m_data.clear();
+        return;
+    }
+
     m_data = std::vector<float>(m_data.begin() + start, m_data.begin() + end);
 }
 

@@ -24,21 +24,11 @@ qt_add_qml_module(muse_cloud_qml
     URI Muse.Cloud
     VERSION 1.0
     SOURCES
-        cloudsmodel.cpp
-        cloudsmodel.h
         dbscoreaccountmodel.cpp
         dbscoreaccountmodel.h
-        enums.cpp
-        enums.h
-        dbscorecloudauthorizationmodel.cpp
-        dbscorecloudauthorizationmodel.h
     QML_FILES
         AccountAvatar.qml
-        AccountInfoButton.qml
-        AccountPage.qml
-        internal/CloudItem.qml
-        internal/CloudsListView.qml
-        RequireAuthorizationDialog.qml
+        PaymentDialog.qml
     IMPORTS
         TARGET muse_ui_qml
         TARGET muse_uicomponents_qml

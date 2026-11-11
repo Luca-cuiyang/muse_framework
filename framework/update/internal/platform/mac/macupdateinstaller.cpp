@@ -74,13 +74,6 @@ bool MacUpdateInstaller::isInPlaceUpdateSupported() const
         return false;
     }
 
-    //! NOTE: Without a team identifier on the running bundle there is nothing
-    //! to pin the update's signature to; fall back to the manual install flow,
-    //! where Gatekeeper assesses the package instead.
-    if (ownTeamIdentifier().isEmpty()) {
-        return false;
-    }
-
     // In-place replacement only works if we can write the bundle without
     // privilege escalation.
     if (::access(bundlePath.toUtf8().constData(), W_OK) != 0
@@ -99,12 +92,14 @@ RetVal<muse::io::path_t> MacUpdateInstaller::prepareUpdate(const muse::io::path_
         return RetVal<muse::io::path_t>(make_ret(Err::UnknownError));
     }
 
-    // 1. Verify the dmg signature before opening it. The unpacked bundle is
-    //    not deep-verified here: the helper re-verifies the staged bundle
-    //    right before the swap.
-    Ret ret = verifyPackageSignature(package);
-    if (!ret) {
-        return RetVal<muse::io::path_t>(ret);
+    // Release packages downloaded from the DB update endpoint are first
+    // checked against the SHA-256 published in the HTTPS release manifest.
+    // Signed builds additionally verify the DMG signature here.
+    if (!ownTeamIdentifier().isEmpty()) {
+        const Ret ret = verifyPackageSignature(package);
+        if (!ret) {
+            return RetVal<muse::io::path_t>(ret);
+        }
     }
 
     const QString stagingDir = configuration()->updateDataPath().toQString() + "/staging";
@@ -115,7 +110,7 @@ RetVal<muse::io::path_t> MacUpdateInstaller::prepareUpdate(const muse::io::path_
     QDir().mkpath(stagingDir);
 
     // 2. Unpack the dmg preserving extended attributes and code signatures.
-    ret = unpackDmg(package, stagingDir);
+    const Ret ret = unpackDmg(package, stagingDir);
     if (!ret) {
         return RetVal<muse::io::path_t>(ret);
     }
@@ -208,16 +203,12 @@ Ret MacUpdateInstaller::verifyPackageSignature(const QString& package) const
         return make_ret(Err::UnknownError);
     }
 
-    //! NOTE: The package must be signed by the same team as the running
-    //! bundle, so that a validly signed package from someone else is not
-    //! accepted. Without an own team (ad-hoc signed development builds) there
-    //! is nothing to pin the package to, so refuse instead of accepting
-    //! anything; such builds never offer auto-install anyway
-    //! (see isInPlaceUpdateSupported).
+    //! NOTE: If the running build has a signing team, updates must be signed
+    //! by the same team. Ad-hoc builds have already been authenticated by the
+    //! SHA-256 from the HTTPS release manifest in AppUpdateService.
     const QString ownTeam = ownTeamIdentifier();
     if (ownTeam.isEmpty()) {
-        LOGE() << "refusing update: the running bundle has no team identifier";
-        return make_ret(Err::UnknownError);
+        return make_ok();
     }
 
     const QString packageTeam = teamIdentifier(package);

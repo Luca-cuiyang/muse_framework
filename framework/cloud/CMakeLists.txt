@@ -30,30 +30,12 @@ target_sources(muse_cloud PRIVATE
 
     internal/cloudconfiguration.h
     internal/cloudconfiguration.cpp
-    internal/oauthhttpserverreplyhandler.h
-    internal/oauthhttpserverreplyhandler.cpp
-    internal/abstractcloudservice.h
-    internal/abstractcloudservice.cpp
-    dbscorecloud/idbscorecloudservice.h
-    dbscorecloud/idbscorecloudconvertservice.h
-    dbscorecloud/converttypes.h
-    dbscoreaudio/idbscoreaudioservice.h
-    dbscoreaudio/dbscoreaudioservice.h
-    dbscoreaudio/dbscoreaudioservice.cpp
     dbscoreauthorization/idbscoreauthorizationservice.h
     dbscoreauthorization/dbscoreauthorizationservice.h
     dbscoreauthorization/dbscoreauthorizationservice.cpp
 )
 
-if (MUSE_MODULE_CLOUD_DBSCORECLOUD)
-    target_sources(muse_cloud PRIVATE
-        dbscorecloud/dbscorecloudservice.cpp
-        dbscorecloud/dbscorecloudservice.h
-    )
-    target_compile_definitions(muse_cloud PUBLIC MUSE_MODULE_CLOUD_DBSCORECLOUD)
-endif()
-
-target_link_libraries(muse_cloud PRIVATE Qt::Network Qt::NetworkAuth)
+target_link_libraries(muse_cloud PRIVATE Qt::Network)
 
 if (MUSE_MODULE_CLOUD_QML)
     add_subdirectory(qml/Muse/Cloud)

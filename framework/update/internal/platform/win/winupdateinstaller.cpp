@@ -205,8 +205,17 @@ bool WinUpdateInstaller::isInPlaceUpdateSupported() const
 
     const bool enabled = isTaskEnabled(task);
     task->Release();
+    if (!enabled) {
+        return false;
+    }
 
-    return enabled;
+    //! The SYSTEM update task refuses packages unless the installer registered
+    //! at least one certificate key or root to pin future signatures to.
+    //! Ad-hoc builds intentionally have neither; those use the manual in-app
+    //! download flow, which launches the MSI with one normal UAC confirmation.
+    const QString anchoredKeys = registeredValue(appId(), win::REG_VALUE_CERT_KEYS);
+    const QString anchoredRoots = registeredValue(appId(), win::REG_VALUE_CERT_ROOTS);
+    return !anchoredKeys.isEmpty() || !anchoredRoots.isEmpty();
 }
 
 RetVal<muse::io::path_t> WinUpdateInstaller::prepareUpdate(const muse::io::path_t& packagePath)
