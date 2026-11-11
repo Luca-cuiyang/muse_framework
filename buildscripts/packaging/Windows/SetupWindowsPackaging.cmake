@@ -64,19 +64,17 @@ endif()
 
 message(STATUS "[SetupWindowsPackaging.cmake] CPACK_WIX_PRODUCT_GUID: ${CPACK_WIX_PRODUCT_GUID}")
 
-if(NOT CPACK_WIX_UPGRADE_GUID)
-    if(MUSE_APP_NAME_MACHINE_READABLE STREQUAL "DBStudio")
-        # Stable since the first public Windows build, so existing installs upgrade in place.
-        set(CPACK_WIX_UPGRADE_GUID "11111111-1111-1111-1111-111111111111")
-    elseif(MUSE_APP_NAME_MACHINE_READABLE STREQUAL "DBScore")
-        # DB Studio and DB Score are separate products and must never share an upgrade code.
-        set(CPACK_WIX_UPGRADE_GUID "22222222-2222-2222-2222-222222222222")
-    else()
-        string(UUID CPACK_WIX_UPGRADE_GUID
-            NAMESPACE "6ba7b810-9dad-11d1-80b4-00c04fd430c8"
-            NAME "cn.drumbear.${MUSE_APP_NAME_MACHINE_READABLE}.upgrade"
-            TYPE SHA1)
-    endif()
+if(MUSE_APP_NAME_MACHINE_READABLE STREQUAL "DBStudio")
+    # Stable since the first public Windows build, so existing installs upgrade in place.
+    set(CPACK_WIX_UPGRADE_GUID "11111111-1111-1111-1111-111111111111" CACHE STRING "DB Studio upgrade code" FORCE)
+elseif(MUSE_APP_NAME_MACHINE_READABLE STREQUAL "DBScore")
+    # DB Studio and DB Score are separate products and must never share an upgrade code.
+    set(CPACK_WIX_UPGRADE_GUID "22222222-2222-2222-2222-222222222222" CACHE STRING "DB Score upgrade code" FORCE)
+elseif(NOT CPACK_WIX_UPGRADE_GUID)
+    string(UUID CPACK_WIX_UPGRADE_GUID
+        NAMESPACE "6ba7b810-9dad-11d1-80b4-00c04fd430c8"
+        NAME "cn.drumbear.${MUSE_APP_NAME_MACHINE_READABLE}.upgrade"
+        TYPE SHA1)
 endif()
 
 message(STATUS "[SetupWindowsPackaging.cmake] CPACK_WIX_UPGRADE_GUID: ${CPACK_WIX_UPGRADE_GUID}")
