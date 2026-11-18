@@ -10,9 +10,11 @@
 #include <QBuffer>
 #include <QCryptographicHash>
 #include <QDateTime>
+#include <QDir>
 #include <QJsonDocument>
 #include <QJsonParseError>
 #include <QJsonValue>
+#include <QSettings>
 #include <QSysInfo>
 #include <QTimer>
 #include <QUrl>
@@ -102,6 +104,7 @@ void DbScoreAuthorizationService::init()
 
     m_phoneToken = settings()->value(PHONE_TOKEN_KEY).toQString();
     m_phoneUser = loadPhoneUser();
+    migrateLegacyPhoneSession();
     m_phoneLoggedIn = !m_phoneToken.isEmpty();
     notifyStateChanged();
 
@@ -645,6 +648,36 @@ void DbScoreAuthorizationService::savePhoneSession()
         PHONE_USER_KEY,
         Val(std::string(json.constData(), json.size())));
     settings()->sync();
+}
+
+void DbScoreAuthorizationService::migrateLegacyPhoneSession()
+{
+    if (!m_phoneToken.isEmpty()) {
+        return;
+    }
+
+    // 5.0.7 and earlier used the bundle-derived "app.dbscore" preferences
+    // domain.  Keep valid sessions across the 5.0.8 domain change, while still
+    // letting the normal profile refresh reject expired/revoked tokens.
+    const QString preferencesPath = QDir::homePath() + QStringLiteral("/Library/Preferences");
+    const QStringList legacyFiles = {
+        preferencesPath + QStringLiteral("/app.dbscore.DBScore5.plist"),
+        preferencesPath + QStringLiteral("/cn.drumbear.DBScore5.plist"),
+    };
+    for (const QString& legacyFile : legacyFiles) {
+        QSettings legacySettings(legacyFile, QSettings::NativeFormat);
+        const QString token = legacySettings.value(
+            QStringLiteral("dbscoreAuthorization/phoneToken")).toString();
+        if (token.isEmpty()) {
+            continue;
+        }
+        const QString userJson = legacySettings.value(
+            QStringLiteral("dbscoreAuthorization/phoneUser")).toString();
+        m_phoneToken = token;
+        m_phoneUser = jsonObjectFromData(userJson.toUtf8());
+        savePhoneSession();
+        return;
+    }
 }
 
 bool DbScoreAuthorizationService::isTrialActive() const

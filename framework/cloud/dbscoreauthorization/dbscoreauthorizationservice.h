@@ -84,6 +84,7 @@ private:
     void scheduleStartupRefresh();
     QJsonObject loadPhoneUser() const;
     void savePhoneSession();
+    void migrateLegacyPhoneSession();
     async::Promise<muse::Ret> refreshPhoneUser();
     bool isTrialActive() const;
 
