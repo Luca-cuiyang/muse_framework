@@ -82,8 +82,8 @@ StyledDialogView {
                 id: releaseTitleLabel
 
                 text: root.readyToInstall
-                      ? qsTrc("update", "A new update is ready to install")
-                      : qsTrc("update", "A new version of %1 is available!").arg(root.appName)
+                      ? qsTrc("update", "新版本已下载完成，可以安装")
+                      : qsTrc("update", "发现 %1 的新版本！").arg(root.appName)
                 font: ui.theme.headerBoldFont
             }
 
@@ -94,9 +94,9 @@ StyledDialogView {
 
                 visible: root.readyToInstall
 
-                text: qsTrc("update", "%1 has downloaded an update and is ready to install. "
-                                      + "%1 will restart to complete the installation. "
-                                      + "If you have any unsaved changes, you will be prompted to save them first.")
+                text: qsTrc("update", "%1 已下载好更新，准备安装。"
+                                      + "安装时 %1 会重启，"
+                                      + "如果有未保存的修改，会先提醒你保存。")
                       .arg(root.appName)
                 horizontalAlignment: Qt.AlignLeft
                 wrapMode: Text.WordWrap
@@ -107,7 +107,7 @@ StyledDialogView {
 
                 visible: !root.readyToInstall
 
-                text: qsTrc("update", "Release notes")
+                text: qsTrc("update", "版本说明")
                 font: ui.theme.largeBodyBoldFont
                 horizontalAlignment: Qt.AlignLeft
             }
@@ -128,8 +128,8 @@ StyledDialogView {
                 visible: root.readyToInstall
 
                 text: root.version.length > 0
-                      ? qsTrc("update", "%1 Release notes").arg(root.version)
-                      : qsTrc("update", "Release notes")
+                      ? qsTrc("update", "%1 版本说明").arg(root.version)
+                      : qsTrc("update", "版本说明")
                 font: ui.theme.largeBodyBoldFont
                 horizontalAlignment: Qt.AlignLeft
             }

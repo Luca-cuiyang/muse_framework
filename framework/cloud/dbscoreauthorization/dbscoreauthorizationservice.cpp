@@ -8,13 +8,16 @@
 #include "dbscoreauthorizationservice.h"
 
 #include <QBuffer>
+#include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QDateTime>
 #include <QDir>
 #include <QJsonDocument>
 #include <QJsonParseError>
 #include <QJsonValue>
+#include <QSaveFile>
 #include <QSettings>
+#include <QStandardPaths>
 #include <QSysInfo>
 #include <QTimer>
 #include <QUrl>
@@ -26,6 +29,60 @@ using namespace muse;
 using namespace muse::cloud;
 using namespace muse::network;
 using namespace muse::async;
+
+static QString dbscoreSessionFilePath()
+{
+    const QString dir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    QDir().mkpath(dir);
+    return QDir(dir).filePath(QStringLiteral("auth-session.json"));
+}
+
+static QJsonObject readDbScoreSessionFile()
+{
+    QFile file(dbscoreSessionFilePath());
+    if (!file.open(QIODevice::ReadOnly)) {
+        return QJsonObject();
+    }
+    return QJsonDocument::fromJson(file.readAll()).object();
+}
+
+static void writeDbScoreSessionFile(const QString& token, const QJsonObject& user)
+{
+    QJsonObject object;
+    object["token"] = token;
+    object["user"] = QString::fromUtf8(
+        QJsonDocument(user).toJson(QJsonDocument::Compact));
+    QSaveFile file(dbscoreSessionFilePath());
+    if (!file.open(QIODevice::WriteOnly)) {
+        return;
+    }
+    file.write(QJsonDocument(object).toJson(QJsonDocument::Compact));
+    file.commit();
+}
+
+static void clearDbScoreSessionFile()
+{
+    writeDbScoreSessionFile(QString(), QJsonObject());
+}
+
+#ifdef Q_OS_MACOS
+// 旧版（5.0.7 及更早）把登录信息写在 bundle 域
+// app.dbscore.DBScore5 的 plist 中。QSettings(org, app) 在 macOS 上
+// 会拼成 com.app.dbscore.DBScore5，读不到旧文件，因此临时把
+// organizationDomain 切到旧域名再读取。
+static QString readLegacyMacPreference(const QString& domain, const QString& key)
+{
+    const QString previousDomain = QCoreApplication::organizationDomain();
+    const QString previousName = QCoreApplication::applicationName();
+    QCoreApplication::setOrganizationDomain(domain);
+    QCoreApplication::setApplicationName(QStringLiteral("DBScore5"));
+    QSettings legacySettings;
+    const QString value = legacySettings.value(key).toString();
+    QCoreApplication::setApplicationName(previousName);
+    QCoreApplication::setOrganizationDomain(previousDomain);
+    return value;
+}
+#endif
 
 static const std::string dbscore_authorization_module_name("cloud");
 
@@ -102,10 +159,20 @@ void DbScoreAuthorizationService::init()
     settings()->setLocalValue(LEGACY_TRIAL_KEY, Val(int64_t(0)));
     settings()->setLocalValue(LEGACY_SYNC_KEY, Val(int64_t(0)));
 
-    m_phoneToken = settings()->value(PHONE_TOKEN_KEY).toQString();
-    m_phoneUser = loadPhoneUser();
+    // 独立会话文件优先：不依赖 QSettings/偏好域，升级换版本也不会丢登录。
+    const QJsonObject fileSession = readDbScoreSessionFile();
+    m_phoneToken = fileSession.value("token").toString();
+    m_phoneUser = jsonObjectFromData(
+        fileSession.value("user").toString().toUtf8());
+    if (m_phoneToken.isEmpty()) {
+        m_phoneToken = settings()->value(PHONE_TOKEN_KEY).toQString();
+        m_phoneUser = loadPhoneUser();
+    }
     migrateLegacyPhoneSession();
     m_phoneLoggedIn = !m_phoneToken.isEmpty();
+    if (m_phoneLoggedIn) {
+        savePhoneSession();
+    }
     notifyStateChanged();
 
     scheduleStartupRefresh();
@@ -270,7 +337,11 @@ async::Promise<Ret> DbScoreAuthorizationService::loginByPhone(
         doRequest(QUrl(PLATFORM_API_BASE_URL + "/api/auth/otp/login"), body)
         .onResolve(this, [this, resolve](const RetVal<QJsonObject>& result) {
             if (!result.ret) {
-                if (QString::fromStdString(result.ret.text()).contains(
+                // 启动阶段账号页可能先于登录令牌加载而发出请求，此时请求
+                // 本来就不带 Authorization。不能因为这种“未登录”响应去
+                // logout()，否则会把本地有效的登录令牌清掉。
+                if (!m_phoneToken.isEmpty()
+                    && QString::fromStdString(result.ret.text()).contains(
                         QStringLiteral("请先登录"))) {
                     logout();
                 }
@@ -404,6 +475,7 @@ void DbScoreAuthorizationService::logout()
     settings()->setLocalValue(PHONE_TOKEN_KEY, Val(std::string()));
     settings()->setLocalValue(PHONE_USER_KEY, Val(std::string()));
     settings()->sync();
+    clearDbScoreSessionFile();
     notifyStateChanged();
 }
 
@@ -648,6 +720,7 @@ void DbScoreAuthorizationService::savePhoneSession()
         PHONE_USER_KEY,
         Val(std::string(json.constData(), json.size())));
     settings()->sync();
+    writeDbScoreSessionFile(m_phoneToken, m_phoneUser);
 }
 
 void DbScoreAuthorizationService::migrateLegacyPhoneSession()
@@ -659,6 +732,56 @@ void DbScoreAuthorizationService::migrateLegacyPhoneSession()
     // 5.0.7 and earlier used the bundle-derived "app.dbscore" preferences
     // domain.  Keep valid sessions across the 5.0.8 domain change, while still
     // letting the normal profile refresh reject expired/revoked tokens.
+    // 用 QSettings(org, app) 而不是硬编码 plist 路径，这样 macOS 和 Windows
+    // 都能命中旧版本的偏好存储位置。
+    const QStringList legacyOrganizations = {
+        QStringLiteral("app.dbscore"),
+        QStringLiteral("cn.drumbear"),
+    };
+
+    auto adoptLegacySession = [this](QSettings& legacySettings) -> bool {
+        const QString token = legacySettings.value(
+            QStringLiteral("dbscoreAuthorization/phoneToken")).toString();
+        if (token.isEmpty()) {
+            return false;
+        }
+        const QString userJson = legacySettings.value(
+            QStringLiteral("dbscoreAuthorization/phoneUser")).toString();
+        m_phoneToken = token;
+        m_phoneUser = jsonObjectFromData(userJson.toUtf8());
+        savePhoneSession();
+        return true;
+    };
+
+#ifdef Q_OS_MACOS
+    const QStringList legacyDomains = {
+        QStringLiteral("app.dbscore"),
+        QStringLiteral("cn.drumbear"),
+    };
+    for (const QString& domain : legacyDomains) {
+        const QString token = readLegacyMacPreference(
+            domain, QStringLiteral("dbscoreAuthorization/phoneToken"));
+        if (token.isEmpty()) {
+            continue;
+        }
+        const QString userJson = readLegacyMacPreference(
+            domain, QStringLiteral("dbscoreAuthorization/phoneUser"));
+        m_phoneToken = token;
+        m_phoneUser = jsonObjectFromData(userJson.toUtf8());
+        savePhoneSession();
+        return;
+    }
+#endif
+
+    for (const QString& organization : legacyOrganizations) {
+        QSettings legacySettings(organization, QStringLiteral("DBScore5"));
+        if (adoptLegacySession(legacySettings)) {
+            return;
+        }
+    }
+
+#ifdef Q_OS_MACOS
+    // 兜底：极早期版本直接写入了明确的 plist 文件路径。
     const QString preferencesPath = QDir::homePath() + QStringLiteral("/Library/Preferences");
     const QStringList legacyFiles = {
         preferencesPath + QStringLiteral("/app.dbscore.DBScore5.plist"),
@@ -666,18 +789,11 @@ void DbScoreAuthorizationService::migrateLegacyPhoneSession()
     };
     for (const QString& legacyFile : legacyFiles) {
         QSettings legacySettings(legacyFile, QSettings::NativeFormat);
-        const QString token = legacySettings.value(
-            QStringLiteral("dbscoreAuthorization/phoneToken")).toString();
-        if (token.isEmpty()) {
-            continue;
+        if (adoptLegacySession(legacySettings)) {
+            return;
         }
-        const QString userJson = legacySettings.value(
-            QStringLiteral("dbscoreAuthorization/phoneUser")).toString();
-        m_phoneToken = token;
-        m_phoneUser = jsonObjectFromData(userJson.toUtf8());
-        savePhoneSession();
-        return;
     }
+#endif
 }
 
 bool DbScoreAuthorizationService::isTrialActive() const

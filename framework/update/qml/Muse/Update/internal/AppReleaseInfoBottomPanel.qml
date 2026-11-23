@@ -48,7 +48,7 @@ RowLayout {
     FlatButton {
         Layout.alignment: Qt.AlignVCenter
 
-        text: qsTrc("update", "Skip this version")
+        text: qsTrc("update", "跳过这个版本")
 
         navigation.name: "SkipButton"
         navigation.panel: root.navigationPanel
@@ -67,7 +67,7 @@ RowLayout {
     FlatButton {
         Layout.alignment: Qt.AlignVCenter
 
-        text: qsTrc("update", "Remind me later")
+        text: qsTrc("update", "稍后提醒我")
         icon: IconCode.CLOCK
 
         orientation: Qt.Horizontal
@@ -86,7 +86,7 @@ RowLayout {
 
         Layout.alignment: Qt.AlignVCenter
 
-        text: qsTrc("update", "Update now")
+        text: qsTrc("update", "立即更新")
         icon: IconCode.IMPORT
 
         accentButton: true

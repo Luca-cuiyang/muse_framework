@@ -428,7 +428,7 @@ Ret AppUpdateService::checkDiskSpace(DiskSpaceFor purpose, uint64_t packageSize,
 
     const uint64_t mb = 1024 * 1024;
     const uint64_t missingMb = (required - available.val + mb - 1) / mb;
-    const std::string text = muse::qtrc("update", "Free up at least %1 MB of disk space and try again.")
+    const std::string text = muse::qtrc("update", "请至少释放 %1 MB 磁盘空间后再试。")
                              .arg(QString::number(static_cast<qulonglong>(missingMb))).toStdString();
 
     return make_ret(Err::NotEnoughDiskSpace, text);
@@ -631,8 +631,8 @@ InstallProgressUi AppUpdateService::makeInstallProgressUi() const
     progressUi.title = appName.toStdString();
 
     progressUi.message = version.isEmpty()
-                         ? muse::qtrc("update", "Installing %1").arg(appName).toStdString()
-                         : muse::qtrc("update", "Installing %1 %2").arg(appName, version).toStdString();
+                         ? muse::qtrc("update", "正在安装 %1").arg(appName).toStdString()
+                         : muse::qtrc("update", "正在安装 %1 %2").arg(appName, version).toStdString();
 
     const muse::ui::ThemeInfo& theme = uiConfiguration()->currentTheme();
 

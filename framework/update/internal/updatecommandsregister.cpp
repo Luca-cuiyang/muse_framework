@@ -31,8 +31,8 @@ using namespace muse::update;
 static const std::vector<CommandInfo> s_commandInfos = {
     CommandInfo{
         UPDATE_CHECK_COMMAND,
-        TranslatableString("update", "Check for update"),
-        TranslatableString("update", "Check for update"),
+        TranslatableString("update", "检查更新"),
+        TranslatableString("update", "检查更新"),
         InputSchema(),
         Decoration()
     },
