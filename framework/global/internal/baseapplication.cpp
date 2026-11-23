@@ -56,9 +56,9 @@ String BaseApplication::appTitle()
 {
 #ifdef MUSE_APP_NAME_HUMAN_READABLE
 #ifdef MUSE_APP_UNSTABLE
-    return String::fromAscii(MUSE_APP_NAME_HUMAN_READABLE) + u" Development";
+    return String::fromUtf8(MUSE_APP_NAME_HUMAN_READABLE) + u" Development";
 #else
-    return String::fromAscii(MUSE_APP_NAME_HUMAN_READABLE);
+    return String::fromUtf8(MUSE_APP_NAME_HUMAN_READABLE);
 #endif
 #else
     return String();
