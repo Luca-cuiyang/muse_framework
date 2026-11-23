@@ -98,7 +98,7 @@ declare_muse_module_opt(MIDIREMOTE ON)
 declare_muse_module_opt(MPE ON)
 
 declare_muse_module_opt(MULTIWINDOWS ON)
-option(MUSE_MODULE_MULTIWINDOWS_SINGLEPROC_MODE "Use single process mode for multi windows" OFF)
+option(MUSE_MODULE_MULTIWINDOWS_SINGLEPROC_MODE "Use single process mode for multi windows" ON)
 
 declare_muse_module_opt(MUSESAMPLER ON)
 option(MUSE_MODULE_MUSESAMPLER_LOAD_IN_DEBUG "Load MuseSampler module in debug builds" OFF)
