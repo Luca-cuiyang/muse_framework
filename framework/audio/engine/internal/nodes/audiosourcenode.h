@@ -48,6 +48,7 @@ public:
     virtual const AudioInputParams& inputParams() const = 0;
     virtual void applyInputParams(const AudioInputParams& requiredParams) = 0;
     virtual async::Channel<AudioInputParams> inputParamsChanged() const = 0;
+    virtual void setPlaybackSpeed(float) {}
 
     virtual void prepareToPlay() = 0;
     virtual bool readyToPlay() const = 0;

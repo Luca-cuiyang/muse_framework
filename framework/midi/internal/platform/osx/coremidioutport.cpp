@@ -145,7 +145,7 @@ void CoreMidiOutPort::initCore()
 
     result = MIDIClientCreate(CFSTR("DB Score"), onCoreMidiNotificationReceived, this, &m_core->client);
     if (result != noErr) {
-        LOGE() << "failed create midi output client";
+        LOGE() << "failed create midi output client, code:" << static_cast<int>(result);
         return;
     }
 

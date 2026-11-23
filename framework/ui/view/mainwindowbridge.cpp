@@ -179,6 +179,16 @@ QScreen* MainWindowBridge::screen() const
     return m_window ? m_window->screen() : nullptr;
 }
 
+void MainWindowBridge::activate()
+{
+    if (!m_window) {
+        return;
+    }
+
+    m_window->raise();
+    m_window->requestActivate();
+}
+
 void MainWindowBridge::showMinimizedWithSavePreviousState()
 {
     // On Windows, QWindow::showMinimized() doesn't store the previous state of the window.

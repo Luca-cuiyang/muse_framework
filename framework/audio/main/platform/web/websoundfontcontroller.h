@@ -31,7 +31,7 @@
 namespace muse::audio {
 class WebSoundFontController : public ISoundFontController, public async::Asyncable
 {
-    GlobalInject<rpc::IRpcChannel> channel;
+    ContextInject<rpc::IRpcChannel> channel;
 
 public:
     WebSoundFontController() = default;

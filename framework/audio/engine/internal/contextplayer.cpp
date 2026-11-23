@@ -22,6 +22,8 @@
 
 #include "contextplayer.h"
 
+#include <cmath>
+
 #include "audio/common/audiosanitizer.h"
 #include "audio/common/audioerrors.h"
 
@@ -112,10 +114,13 @@ TimePosition ContextPlayer::proc_onTimeChanged(const TimePosition& delta)
     // Check: Loop
     const TimePosition newTime = m_currentPosition.forwarded(delta);
     if (m_timeLoopStart < m_timeLoopEnd && newTime.time() >= m_timeLoopEnd) {
-        //! TODO Seek may be necessary to call this directly within the PROC thread.
-        m_timeEvent.send(TimeEvent { TimeEventType::LoopEnded, newTime }); // forwarding an event to the engine thread
+        const secs_t loopDuration = m_timeLoopEnd - m_timeLoopStart;
         const secs_t overshoot = newTime.time() - m_timeLoopEnd;
-        return TimePosition::fromTime(m_timeLoopStart + overshoot, delta.sampleRate());
+        const secs_t wrappedPosition = m_timeLoopStart + std::fmod(overshoot, loopDuration);
+        const TimePosition loopedTime = TimePosition::fromTime(wrappedPosition, delta.sampleRate());
+        //! TODO Seek may be necessary to call this directly within the PROC thread.
+        m_timeEvent.send(TimeEvent { TimeEventType::LoopEnded, loopedTime }); // forwarding an event to the engine thread
+        return loopedTime;
     }
 
     // Check: Duration

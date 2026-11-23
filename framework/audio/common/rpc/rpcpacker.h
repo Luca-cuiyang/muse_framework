@@ -268,12 +268,12 @@ inline void unpack_custom(muse::msgpack::UnPacker& p, muse::audio::AutomatableVa
 
 inline void pack_custom(muse::msgpack::Packer& p, const muse::audio::ControlParams& value)
 {
-    p.process(value.volume, value.balance, value.muted);
+    p.process(value.volume, value.balance, value.muted, value.playbackSpeed);
 }
 
 inline void unpack_custom(muse::msgpack::UnPacker& p, muse::audio::ControlParams& value)
 {
-    p.process(value.volume, value.balance, value.muted);
+    p.process(value.volume, value.balance, value.muted, value.playbackSpeed);
 }
 
 inline void pack_custom(muse::msgpack::Packer& p, const muse::audio::SoundTrackData& value)

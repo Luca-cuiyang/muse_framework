@@ -50,7 +50,7 @@ ColumnLayout {
 
                 horizontalAlignment: Text.AlignLeft
 
-                text: qsTrc("update", "有新版本可用")
+                text: qsTrc("update", "Update available")
                 font: ui.theme.largeBodyBoldFont
             }
 
@@ -58,7 +58,7 @@ ColumnLayout {
                 icon: IconCode.CLOSE_X_ROUNDED
                 transparent: true
 
-                navigation.accessible.name: qsTrc("global", "忽略")
+                navigation.accessible.name: qsTrc("global", "Dismiss")
 
                 onClicked: {
                     root.dismissRequested()
@@ -84,7 +84,7 @@ ColumnLayout {
         FlatButton {
             Layout.fillWidth: true
 
-            text: qsTrc("update", "查看详情")
+            text: qsTrc("update", "See details")
 
             onClicked: {
                 root.detailsRequested()
@@ -94,7 +94,7 @@ ColumnLayout {
         FlatButton {
             Layout.fillWidth: true
 
-            text: qsTrc("update", "更新")
+            text: qsTrc("update", "Update")
             accentButton: true
 
             onClicked: {

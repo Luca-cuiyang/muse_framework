@@ -31,8 +31,6 @@
 #include "cloud/cloudtypes.h"
 #include "cloud/iauthorizationservice.h"
 
-#include "idbscorecloudconvertservice.h"
-
 class QIODevice;
 class QString;
 
@@ -47,8 +45,6 @@ public:
     virtual ~IDBScoreCloudService() = default;
 
     virtual IAuthorizationServicePtr authorization() = 0;
-
-    virtual IDBScoreCloudConvertServicePtr convert() = 0;
 
     virtual QUrl scoreManagerUrl() const = 0;
 

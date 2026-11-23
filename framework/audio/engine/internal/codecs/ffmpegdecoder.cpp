@@ -147,10 +147,6 @@ int bytesPerSample(AVSampleFormat fmt)
 // 将一帧 FFmpeg 采样转换为交错 float，追加到 out。
 void appendFrame(const AVFrame* frame, std::vector<float>& out)
 {
-    if (!frame) {
-        return;
-    }
-
     const int channels = frame->ch_layout.nb_channels;
     if (channels <= 0 || frame->nb_samples <= 0) {
         return;
@@ -163,28 +159,13 @@ void appendFrame(const AVFrame* frame, std::vector<float>& out)
     }
 
     const bool planar = isPlanar(fmt);
-    if (planar) {
-        if (!frame->extended_data) {
-            return;
-        }
-        for (int ch = 0; ch < channels; ++ch) {
-            if (!frame->extended_data[ch]) {
-                return;
-            }
-        }
-    } else if (!frame->data[0]) {
-        return;
-    }
-
     const size_t oldSize = out.size();
     out.resize(oldSize + size_t(frame->nb_samples) * size_t(channels));
 
     for (int s = 0; s < frame->nb_samples; ++s) {
         for (int ch = 0; ch < channels; ++ch) {
-            // 平面格式每个声道是独立缓冲区，采样步长应为单个采样的字节数；
-            // 之前误用 linesize[0]（整个平面的字节数）作步长，会越界读取并崩溃。
             const uint8_t* p = planar
-                                   ? frame->extended_data[ch] + size_t(s) * size_t(bps)
+                                   ? frame->extended_data[ch] + size_t(s) * size_t(frame->linesize[0])
                                    : frame->data[0] + (size_t(s) * size_t(channels) + size_t(ch)) * size_t(bps);
 
             float v = 0.f;
@@ -233,10 +214,6 @@ struct MemIo {
 int memRead(void* opaque, uint8_t* buf, int bufSize)
 {
     MemIo* m = static_cast<MemIo*>(opaque);
-    if (!m || !buf || bufSize <= 0 || m->pos >= m->size) {
-        return AVERROR_EOF;
-    }
-
     const size_t remaining = m->size - m->pos;
     const size_t n = remaining < size_t(bufSize) ? remaining : size_t(bufSize);
     std::memcpy(buf, m->data + m->pos, n);

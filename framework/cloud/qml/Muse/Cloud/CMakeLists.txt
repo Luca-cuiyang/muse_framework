@@ -27,7 +27,6 @@ qt_add_qml_module(muse_cloud_qml
         dbscoreaccountmodel.cpp
         dbscoreaccountmodel.h
     QML_FILES
-        AccountAvatar.qml
         PaymentDialog.qml
     IMPORTS
         TARGET muse_ui_qml

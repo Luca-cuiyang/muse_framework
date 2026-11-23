@@ -346,6 +346,12 @@ void AudioContext::onControlParamsChanged(Track& track, const ControlParams& par
         control->setMuted(params.muted);
 
         //! NOTE For regular tracks
+        if (track.chain->source()) {
+            if (auto source = std::dynamic_pointer_cast<AudioSourceNode>(track.chain->source())) {
+                source->setPlaybackSpeed(params.playbackSpeed);
+            }
+        }
+
         if (mutedChanged && !params.muted && track.chain->source()) {
             if (auto source = std::dynamic_pointer_cast<AudioSourceNode>(track.chain->source())) {
                 source->seek(m_player->currentPosition());

@@ -154,6 +154,7 @@ std::map<muse::Uri, ExtensionConfig> ExtensionsConfiguration::extensionConfigs()
     }
     //! NOTE Load old plugins config
     else {
+        // 全新安装没有旧版插件配置属于正常状态，不应作为错误反复上报。
         if (!io::File::exists(oldPluginsConfigPath)) {
             return {};
         }

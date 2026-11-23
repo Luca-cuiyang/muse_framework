@@ -42,7 +42,6 @@ Item {
     property real minValue: -999
     property alias validator: textInputField.validator
     property bool wrap: false
-    property alias clearOnFocus: textInputField.clearOnFocus
 
     property alias measureUnitsSymbol: textInputField.measureUnitsSymbol
     property alias hint: textInputField.hint
@@ -289,9 +288,6 @@ Item {
         }
 
         onEscaped: {
-            if (root.replaceOnInput) {
-                textInputField.inputField.text = root.textBeforeEdit
-            }
             root.escaped()
         }
     }

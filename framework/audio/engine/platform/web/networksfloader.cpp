@@ -61,7 +61,7 @@ async::Promise<RetVal<ByteArray> > NetworkSFLoader::load(const Uri& uri)
             Holder* h = static_cast<Holder*>(fetch->userData);
             LOGI() << "success download sf: " << h->uri;
             h->onSuccess(fetch->data, fetch->numBytes);
-            emscripten_fetch_close(fetch);
+            emscripten_fetch_close(fetch);  // Free data associated with the fetch.
             delete h;
         };
 
@@ -69,7 +69,7 @@ async::Promise<RetVal<ByteArray> > NetworkSFLoader::load(const Uri& uri)
             Holder* h = static_cast<Holder*>(fetch->userData);
             LOGE() << "failed download sf: " << h->uri;
             h->onFailed(fetch->status);
-            emscripten_fetch_close(fetch);
+            emscripten_fetch_close(fetch);  // Also free data on failure.
             delete h;
         };
 

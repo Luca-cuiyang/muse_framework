@@ -157,7 +157,7 @@ Rectangle {
         navigation.name: "CloseButton"
         navigation.panel: navPanel
         navigation.column: 1
-        navigation.accessible.name: qsTrc("global", "Close")
+        navigation.accessible.name: qsTrc("global", "关闭")
 
         onClicked: {
             root.close()

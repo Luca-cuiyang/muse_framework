@@ -28,12 +28,13 @@
 
 using namespace muse::audio;
 using namespace muse::audio::engine;
-using namespace muse::async;
 
 SoundFileNode::SoundFileNode(TrackId /*trackId*/, muse::io::IODevice* device, const SoundTrackData& data)
     : m_data(data)
 {
     ONLY_AUDIO_ENGINE_THREAD;
+
+    m_basePlaybackSpeed = std::max(0.01f, data.speed);
 
     if (device) {
         m_decoder.open(device);
@@ -42,10 +43,6 @@ SoundFileNode::SoundFileNode(TrackId /*trackId*/, muse::io::IODevice* device, co
     if (m_decoder.isValid()) {
         if (m_data.clipStart.raw() > 0.0 || m_data.clipEnd.raw() > 0.0) {
             m_decoder.crop(m_data.clipStart.raw(), m_data.clipEnd.raw());
-        }
-
-        if (std::fabs(m_data.speed - 1.f) > 0.001f) {
-            m_decoder.applyTimeStretch(m_data.speed);
         }
 
         m_clipEndFrame = static_cast<double>(m_decoder.frames());
@@ -85,17 +82,7 @@ void SoundFileNode::doSelfProcess(float* buffer, samples_t samplesPerChannel)
     const unsigned int inputChannels = m_decoder.channels();
     const double sourceRate = m_decoder.sampleRate();
     const double outputRate = m_outputSpec.sampleRate;
-
-    // 防御：无效解码结果不能进入混音，否则下面 c % inputChannels 会除零崩溃。
-    if (outputChannels == 0 || inputChannels == 0 || !std::isfinite(sourceRate) || !std::isfinite(outputRate)
-        || sourceRate <= 0.0 || outputRate <= 0.0) {
-        if (buffer && samplesPerChannel > 0 && outputChannels > 0) {
-            std::fill(buffer, buffer + size_t(samplesPerChannel) * outputChannels, 0.f);
-        }
-        return;
-    }
-
-    const double step = sourceRate / outputRate;
+    const double step = (sourceRate / outputRate) * m_data.speed;
     const uint64_t totalFrames = m_decoder.frames();
     const std::vector<float>& data = m_decoder.data();
 
@@ -145,14 +132,8 @@ void SoundFileNode::seek(const TimePosition& position, const bool /*flushSound*/
     }
 
     const double scoreTime = position.time().raw();
-    const double sampleRate = m_decoder.sampleRate();
-    if (!std::isfinite(scoreTime) || !std::isfinite(sampleRate) || sampleRate <= 0.0) {
-        m_positionFrame = 0.0;
-        return;
-    }
-
     const double sourceTime = scoreTime - m_data.startOffset.raw();
-    m_positionFrame = std::min(sourceTime * sampleRate, m_clipEndFrame);
+    m_positionFrame = std::min(sourceTime * m_decoder.sampleRate() * m_data.speed, m_clipEndFrame);
 }
 
 void SoundFileNode::flush()
@@ -177,6 +158,22 @@ void SoundFileNode::applyInputParams(const AudioInputParams& requiredParams)
 async::Channel<AudioInputParams> SoundFileNode::inputParamsChanged() const
 {
     return m_paramsChanges;
+}
+
+void SoundFileNode::setPlaybackSpeed(float speed)
+{
+    ONLY_AUDIO_ENGINE_THREAD;
+
+    const float targetSpeed = m_basePlaybackSpeed * std::max(0.01f, speed);
+    if (!m_decoder.isValid() || std::fabs(m_data.speed - targetSpeed) < 0.001f) {
+        return;
+    }
+
+    const double oldSpeed = m_data.speed;
+    m_data.speed = targetSpeed;
+
+    const double fadeScale = oldSpeed / targetSpeed;
+    m_data.startOffset *= fadeScale;
 }
 
 void SoundFileNode::prepareToPlay()

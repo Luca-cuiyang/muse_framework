@@ -83,7 +83,6 @@ public:
 
     void reload();
     void load();
-    void sync();
 
     void reset(bool keepDefaultSettings = false, bool notifyAboutChanges = true, bool notifyOtherInstances = true);
 

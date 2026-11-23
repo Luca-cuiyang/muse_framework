@@ -1,6 +1,6 @@
 /*
  * SPDX-License-Identifier: GPL-3.0-only
- * DB Score - 微信支付二维码
+ * DB Studio - 微信支付二维码
  */
 pragma ComponentBehavior: Bound
 

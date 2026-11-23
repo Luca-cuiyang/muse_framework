@@ -62,21 +62,10 @@ void GeneralRpcChannel::setupOnEngine()
 
 void GeneralRpcChannel::process()
 {
-    // The audio engine may be torn down while RPC messages are still queued
-    // (for example right after a video export finishes). A message handler can
-    // then touch an already-destroyed engine object and a mutex lock throws
-    // std::system_error on the audio thread, which used to abort the app.
-    // Keep the RPC thread alive and log the event instead of terminating.
-    try {
-        if (s_isMainThread) {
-            m_msgQueue.port1()->process();
-        } else {
-            m_msgQueue.port2()->process();
-        }
-    } catch (const std::exception& e) {
-        LOGE() << "audio rpc processing failed: " << e.what();
-    } catch (...) {
-        LOGE() << "audio rpc processing failed: unknown error";
+    if (s_isMainThread) {
+        m_msgQueue.port1()->process();
+    } else {
+        m_msgQueue.port2()->process();
     }
 }
 

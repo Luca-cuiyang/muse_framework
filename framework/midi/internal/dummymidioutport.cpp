@@ -35,7 +35,7 @@ MidiDeviceList DummyMidiOutPort::availableDevices() const
 {
     MidiDevice d;
     d.id = "dummy";
-    d.name = "Dummy";
+        d.name = "未连接设备";
     return { d };
 }
 

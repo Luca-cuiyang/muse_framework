@@ -32,7 +32,7 @@ using namespace muse::audio;
 using namespace muse::audio::engine;
 using namespace muse::audio::rpc;
 
-static const AudioResourceId DEFAULT_SOUND_FONT_NAME = "MS Basic";
+static const AudioResourceId DEFAULT_SOUND_FONT_NAME = "FluidR3_GM";
 static const AudioResourceAttributes DEFAULT_AUDIO_RESOURCE_ATTRIBUTES = {
     { PLAYBACK_SETUP_DATA_ATTRIBUTE, muse::mpe::GENERIC_SETUP_DATA_STRING },
     { synth::SOUNDFONT_NAME_ATTRIBUTE, String::fromStdString(DEFAULT_SOUND_FONT_NAME) } };

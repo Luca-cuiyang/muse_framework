@@ -159,27 +159,7 @@ io::path_t Workspace::filePath() const
 Ret Workspace::load()
 {
     mi::ReadResourceLockGuard resource_guard(multiwindowsProvider.get(), fileResourceName());
-    Ret ret = m_file->load();
-    if (!ret) {
-        return ret;
-    }
-
-    // 5.0.5 was built with KDDockWidgets v2 and saved a dock layout that 5.0.6+
-    // (v1) cannot restore; loading it leaves the main window blank. 5.0.6 could
-    // rewrite such a file while still keeping the incompatible layout data, so
-    // both versions are treated as one-time resets on upgrade.
-    const io::path_t builtinPath = builtinWorkspacePath();
-    const std::string savedVersion = m_file->meta("app_version").toString();
-    if (!builtinPath.empty() && filePath() != builtinPath
-        && (savedVersion == "5.0.5" || savedVersion == "5.0.6")) {
-        LOGE() << "workspace was saved by a build with an incompatible dock layout, resetting to builtin: "
-               << filePath();
-        fileSystem()->remove(filePath());
-        m_file = std::make_shared<WorkspaceFile>(builtinPath);
-        return m_file->load();
-    }
-
-    return ret;
+    return m_file->load();
 }
 
 Ret Workspace::save()

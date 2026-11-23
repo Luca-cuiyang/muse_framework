@@ -2,7 +2,7 @@
  * SPDX-License-Identifier: GPL-3.0-only
  * MuseScore-CLA-applies
  *
- * DB Score - DB后台端账号服务
+ * DB Studio - DB后台端账号服务
  */
 
 #ifndef MUSE_CLOUD_DBSCOREAUTHORIZATIONSERVICE_H
@@ -84,7 +84,6 @@ private:
     void scheduleStartupRefresh();
     QJsonObject loadPhoneUser() const;
     void savePhoneSession();
-    void migrateLegacyPhoneSession();
     async::Promise<muse::Ret> refreshPhoneUser();
     bool isTrialActive() const;
 

@@ -53,7 +53,7 @@ Row {
         navigation.panel: root.navigationPanel
         navigation.order: root.navigationOrderStart
         navigation.name: "hours"
-        accessible.name: qsTrc("global", "Hours")
+        accessible.name: qsTrc("global", "小时")
 
         onValueEdited: function(newValue) {
             var newTime = root.time
@@ -80,7 +80,7 @@ Row {
         navigation.panel: root.navigationPanel
         navigation.order: root.navigationOrderStart + 1
         navigation.name: "minutes"
-        accessible.name: qsTrc("global", "Minutes")
+        accessible.name: qsTrc("global", "分钟")
 
         onValueEdited: function(newValue) {
             var newTime = root.time
@@ -107,7 +107,7 @@ Row {
         navigation.panel: root.navigationPanel
         navigation.order: root.navigationOrderStart + 2
         navigation.name: "seconds"
-        accessible.name: qsTrc("global", "Seconds")
+        accessible.name: qsTrc("global", "秒")
 
         onValueEdited: function(newValue) {
             var newTime = root.time
@@ -136,7 +136,7 @@ Row {
         navigation.panel: root.navigationPanel
         navigation.order: root.navigationOrderStart + 3
         navigation.name: "milliseconds"
-        accessible.name: qsTrc("global", "Milliseconds")
+        accessible.name: qsTrc("global", "毫秒")
 
         onValueEdited: function(newValue) {
             var newTime = root.time

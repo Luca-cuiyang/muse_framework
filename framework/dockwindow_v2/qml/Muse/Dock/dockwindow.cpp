@@ -22,10 +22,6 @@
 
 #include "dockwindow.h"
 
-#include <QJsonArray>
-#include <QJsonDocument>
-#include <QJsonObject>
-
 #include "kddockwidgets/src/LayoutSaver.h"
 #include "kddockwidgets/src/core/DockRegistry.h"
 #include "kddockwidgets/src/core/Layout.h"
@@ -159,13 +155,11 @@ void DockWindow::onQuit()
     }
 
     savePageState(m_currentPage->objectName());
-    // Save the window layout BEFORE unregistering the docks: otherwise the
-    // serialized layout has no dock widgets and the next launch restores a
-    // blank window.
-    saveWindowGeometry();
-
     m_reloadCurrentPageAllowed = false;
+
     clearRegistry(iocContext()->id);
+
+    saveWindowGeometry();
 }
 
 QString DockWindow::currentPageUri() const
@@ -542,29 +536,15 @@ void DockWindow::restoreGeometry()
 {
     TRACEFUNC;
 
-    const QByteArray state = uiState()->windowGeometry();
-    if (state.isEmpty()) {
+    if (uiState()->windowGeometry().isEmpty()) {
         return;
     }
 
-    // Only apply the saved window size. Restoring the saved dock layout has
-    // proven unreliable across versions and can leave the window blank, so the
-    // page always starts from its default layout.
-    const QJsonDocument document = QJsonDocument::fromJson(state);
-    if (document.isObject()) {
-        const QJsonArray windows = document.object().value("mainWindows").toArray();
-        if (!windows.isEmpty() && m_mainWindow && m_mainWindow->window()) {
-            const QJsonObject geometry = windows.first().toObject()
-                                             .value("geometry").toObject();
-            const int width = geometry.value("width").toInt();
-            const int height = geometry.value("height").toInt();
-            if (width > 0 && height > 0) {
-                m_mainWindow->window()->resize(width, height);
-            }
-        }
+    if (restoreLayout(uiState()->windowGeometry())) {
+        m_hasGeometryBeenRestored = true;
+    } else {
+        LOGE() << "Could not restore the window geometry!";
     }
-
-    m_hasGeometryBeenRestored = true;
 }
 
 void DockWindow::savePageState(const QString& pageName)
@@ -642,20 +622,6 @@ bool DockWindow::checkLayoutIsCorrupted() const
         }
 
         if (!dock->floatable() && dock->floating()) {
-            return true;
-        }
-    }
-
-    // The central dock must always be open. A saved layout with an empty
-    // main-window layout would otherwise restore to a blank window.
-    if (m_currentPage && m_currentPage->centralDock()
-        && !m_currentPage->centralDock()->isOpen()) {
-        return true;
-    }
-
-    if (m_mainWindow && m_mainWindow->window()) {
-        const QSize windowSize = m_mainWindow->window()->size();
-        if (windowSize.width() <= 0 || windowSize.height() <= 0) {
             return true;
         }
     }

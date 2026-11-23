@@ -25,8 +25,6 @@
 #include "audio/common/rpc/rpcpacker.h"
 #include "audio/common/audioerrors.h"
 
-#include "io/buffer.h"
-
 #include "log.h"
 
 //#define CHECK_METHODS_DURATION
@@ -296,50 +294,6 @@ void EngineRpcController::init()
 
             if (auto actx = audioContext(msg.ctxId)) {
                 RetType ret = actx->addTrack(trackName, device, params);
-                return make_response(msg, RpcPacker::pack(ret));
-            } else {
-                return make_response(msg, RpcPacker::pack(RetType::make_ret(Err::InvalidContext)));
-            }
-        });
-
-        onLongRequest(ctxId, MsgCode::AddTrackWithRawData, [this](const Msg& msg) {
-            ONLY_AUDIO_RPC_THREAD;
-
-            using RetType = RetVal2<TrackId, TrackParams>;
-
-            TrackName trackName;
-            uint64_t dataSize = 0;
-            TrackParams params;
-            muse::msgpack::Cursor cursor(msg.data.constData(), msg.data.size());
-            IF_ASSERT_FAILED(muse::msgpack::UnPacker::unpack(cursor, trackName, dataSize, params)) {
-                return make_response(msg, RpcPacker::pack(RetType::make_ret(Err::InvalidRpcData)));
-            }
-
-            if (cursor.remain() < dataSize) {
-                return make_response(msg, RpcPacker::pack(RetType::make_ret(Err::InvalidRpcData)));
-            }
-
-            std::vector<uint8_t> bytes(cursor.current, cursor.current + dataSize);
-            LOGI() << "AddTrackWithRawData: " << trackName << ", size: " << bytes.size()
-                   << ", head: " << (bytes.size() > 0 ? int(bytes[0]) : -1)
-                   << (bytes.size() > 1 ? int(bytes[1]) : -1)
-                   << (bytes.size() > 2 ? int(bytes[2]) : -1)
-                   << (bytes.size() > 3 ? int(bytes[3]) : -1);
-
-            if (auto actx = audioContext(msg.ctxId)) {
-                io::Buffer buffer(bytes.data(), bytes.size());
-                buffer.open(io::IODevice::ReadOnly);
-                RetType ret = actx->addTrack(trackName, &buffer, params);
-                buffer.close();
-                if (!ret.ret) {
-                    std::string text = "raw web audio could not be decoded, size: "
-                                       + std::to_string(bytes.size()) + ", head: "
-                                       + std::to_string(bytes.size() > 0 ? int(bytes[0]) : -1) + " "
-                                       + std::to_string(bytes.size() > 1 ? int(bytes[1]) : -1) + " "
-                                       + std::to_string(bytes.size() > 2 ? int(bytes[2]) : -1) + " "
-                                       + std::to_string(bytes.size() > 3 ? int(bytes[3]) : -1);
-                    ret.ret = Ret(ret.ret.code(), text);
-                }
                 return make_response(msg, RpcPacker::pack(ret));
             } else {
                 return make_response(msg, RpcPacker::pack(RetType::make_ret(Err::InvalidContext)));

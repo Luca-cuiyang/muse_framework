@@ -188,7 +188,7 @@ void CoreMidiInPort::initCore()
 
     result = MIDIClientCreate(CFSTR("DB Score"), onCoreMidiNotificationReceived, this, &m_core->client);
     IF_ASSERT_FAILED(result == noErr) {
-        LOGE() << "failed create midi input client";
+        LOGE() << "failed create midi input client, code:" << static_cast<int>(result);
         return;
     }
 

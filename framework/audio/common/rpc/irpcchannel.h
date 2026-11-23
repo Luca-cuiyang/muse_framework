@@ -78,7 +78,6 @@ enum class MsgCode {
     GetTrackName,
     AddTrackWithPlaybackData,
     AddTrackWithIODevice,
-    AddTrackWithRawData,
     AddAuxTrack,
     // notification
     TrackAdded,
@@ -180,7 +179,6 @@ inline std::string to_string(MsgCode m)
     case MsgCode::GetTrackName: return "GetTrackName";
     case MsgCode::AddTrackWithPlaybackData: return "AddTrackWithPlaybackData";
     case MsgCode::AddTrackWithIODevice: return "AddTrackWithIODevice";
-    case MsgCode::AddTrackWithRawData: return "AddTrackWithRawData";
     case MsgCode::AddAuxTrack: return "AddAuxTrack";
     case MsgCode::TrackAdded: return "TrackAdded";
     case MsgCode::TrackRemoved: return "TrackRemoved";

@@ -63,7 +63,7 @@ FlatButton {
         }
 
         if (itemData.checkable) {
-            return itemData.title + "  " + (itemData.checked ? qsTrc("global", "On") : qsTrc("global", "Off"))
+            return itemData.title + "  " + (itemData.checked ? qsTrc("global", "开") : qsTrc("global", "关"))
         }
 
         return itemData.title

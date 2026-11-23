@@ -38,7 +38,6 @@ class AudioTaskScheduler : public IAudioTaskScheduler, public muse::async::Async
 public:
     void submitRealtimeTasksAndWait(const std::vector<Task>& tasks) override
     {
-#ifdef MUSE_THREADS_SUPPORT
         std::lock_guard lock(m_threadPoolMutex);
         for (const auto& task : tasks) {
             IF_ASSERT_FAILED(m_threadPool->enqueue(task)) {
@@ -46,11 +45,6 @@ public:
             }
         }
         m_threadPool->participateAndWait();
-#else
-        for (const auto& task : tasks) {
-            task();
-        }
-#endif
     }
 
     void setAudioDriver(const IAudioDriverPtr& audioDriver)
@@ -58,7 +52,6 @@ public:
         if (!audioDriver) {
             return;
         }
-#ifdef MUSE_THREADS_SUPPORT
         setWorkgroup(audioDriver->getAudioWorkGroup());
         audioDriver->currentWorkgroupChanged().onNotify(
             this, [this, audioDriverWeak = std::weak_ptr<IAudioDriver>(audioDriver)]() {
@@ -66,12 +59,10 @@ public:
                 setWorkgroup(audioDriver->getAudioWorkGroup());
             }
         });
-#endif
     }
 
 private:
 
-#ifdef MUSE_THREADS_SUPPORT
     void setWorkgroup(const AudioWorkGroup& workGroup)
     {
         std::lock_guard lock(m_threadPoolMutex);
@@ -102,6 +93,5 @@ private:
     std::unique_ptr<RealtimeThreadPool> m_threadPool{ std::make_unique<RealtimeThreadPool>(threadpoolName, getIdealThreadCount({})) };
 
     std::recursive_mutex m_threadPoolMutex;
-#endif
 };
 }

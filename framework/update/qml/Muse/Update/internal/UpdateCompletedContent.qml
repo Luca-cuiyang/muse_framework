@@ -62,7 +62,7 @@ RowLayout {
         horizontalAlignment: Text.AlignLeft
         wrapMode: Text.WordWrap
 
-        text: qsTrc("update", "更新成功")
+        text: qsTrc("update", "Updated successfully")
         font: ui.theme.bodyBoldFont
     }
 
@@ -70,7 +70,7 @@ RowLayout {
         icon: IconCode.CLOSE_X_ROUNDED
         transparent: true
 
-        navigation.accessible.name: qsTrc("global", "忽略")
+        navigation.accessible.name: qsTrc("global", "Dismiss")
 
         onClicked: {
             root.dismissRequested()

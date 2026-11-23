@@ -436,12 +436,14 @@ struct ControlParams {
     AutomatableValue<volume_db_t> volume;
     AutomatableValue<balance_t> balance;
     bool muted = false;
+    float playbackSpeed = 1.f;
 
     bool operator ==(const ControlParams& other) const
     {
         return muted == other.muted
                && volume == other.volume
-               && balance == other.balance;
+               && balance == other.balance
+               && muse::is_equal(playbackSpeed, other.playbackSpeed);
     }
 
     bool operator !=(const ControlParams& other) const

@@ -57,10 +57,11 @@ public:
 
     bool isFullScreen() const;
     async::Notification isFullScreenChanged() const;
-    void toggleFullScreen();
+    virtual void toggleFullScreen();
 
     QScreen* screen() const;
 
+    Q_INVOKABLE virtual void activate();
     Q_INVOKABLE void showMinimizedWithSavePreviousState();
 
 signals:

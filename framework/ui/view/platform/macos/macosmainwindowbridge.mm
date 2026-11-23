@@ -22,7 +22,9 @@
 #include "macosmainwindowbridge.h"
 
 #include <Cocoa/Cocoa.h>
+#include <objc/runtime.h>
 #include <QWindow>
+#include <cstdio>
 
 using namespace muse::ui;
 
@@ -37,9 +39,65 @@ static NSWindow* nsWindowForQWindow(QWindow* qWindow)
     return nsWindow;
 }
 
+static NSApplicationPresentationOptions dbstudioFullScreenPresentationOptions(
+    id, SEL, NSWindow*, NSApplicationPresentationOptions proposedOptions)
+{
+    proposedOptions &= ~(NSApplicationPresentationAutoHideMenuBar
+                         | NSApplicationPresentationAutoHideDock
+                         | NSApplicationPresentationAutoHideToolbar);
+    return proposedOptions | NSApplicationPresentationHideMenuBar | NSApplicationPresentationHideDock;
+}
+
+static void installFullScreenPresentationBehavior(NSWindow* window)
+{
+    id delegate = window.delegate;
+    if (!delegate) {
+        return;
+    }
+
+    static id installedDelegate = nil;
+    if (delegate == installedDelegate) {
+        return;
+    }
+
+    static unsigned long delegateClassIndex = 0;
+    char className[64];
+    snprintf(className, sizeof(className), "DBStudioFullScreenWindowDelegate%lu", ++delegateClassIndex);
+
+    Class delegateClass = object_getClass(delegate);
+    Class fullScreenDelegateClass = objc_allocateClassPair(delegateClass, className, 0);
+    if (!fullScreenDelegateClass) {
+        return;
+    }
+
+    class_addMethod(fullScreenDelegateClass,
+                    @selector(window:willUseFullScreenPresentationOptions:),
+                    (IMP)dbstudioFullScreenPresentationOptions,
+                    "Q@:@@Q");
+    objc_registerClassPair(fullScreenDelegateClass);
+    object_setClass(delegate, fullScreenDelegateClass);
+    installedDelegate = delegate;
+}
+
 MacOSMainWindowBridge::MacOSMainWindowBridge(QObject* parent)
     : MainWindowBridge(parent)
 {
+}
+
+MacOSMainWindowBridge::~MacOSMainWindowBridge()
+{
+    NSNotificationCenter* notificationCenter = [NSNotificationCenter defaultCenter];
+
+    if (m_enterFullScreenObserver) {
+        [notificationCenter removeObserver:(__bridge id)m_enterFullScreenObserver];
+        [(__bridge id)m_enterFullScreenObserver release];
+    }
+    if (m_exitFullScreenObserver) {
+        [notificationCenter removeObserver:(__bridge id)m_exitFullScreenObserver];
+        [(__bridge id)m_exitFullScreenObserver release];
+    }
+
+    [[NSApplication sharedApplication] setPresentationOptions:NSApplicationPresentationDefault];
 }
 
 void MacOSMainWindowBridge::init()
@@ -51,6 +109,29 @@ void MacOSMainWindowBridge::init()
     uiConfiguration()->currentThemeChanged().onNotify(this, [this]() {
         uiConfiguration()->applyPlatformStyle(m_window);
     });
+
+    NSWindow* nsWindow = nsWindowForQWindow(m_window);
+    if (!nsWindow) {
+        return;
+    }
+
+    installFullScreenPresentationBehavior(nsWindow);
+
+    NSNotificationCenter* notificationCenter = [NSNotificationCenter defaultCenter];
+    id enterObserver = [notificationCenter addObserverForName:NSWindowDidEnterFullScreenNotification
+                                                      object:nsWindow
+                                                       queue:[NSOperationQueue mainQueue]
+                                                  usingBlock:^(NSNotification*) {
+        setFullScreenPresentationOptions(true);
+    }];
+    id exitObserver = [notificationCenter addObserverForName:NSWindowDidExitFullScreenNotification
+                                                     object:nsWindow
+                                                      queue:[NSOperationQueue mainQueue]
+                                                 usingBlock:^(NSNotification*) {
+        setFullScreenPresentationOptions(false);
+    }];
+    m_enterFullScreenObserver = [enterObserver retain];
+    m_exitFullScreenObserver = [exitObserver retain];
 }
 
 bool MacOSMainWindowBridge::fileModified() const
@@ -62,6 +143,26 @@ bool MacOSMainWindowBridge::fileModified() const
     }
 
     return [nsWindow isDocumentEdited];
+}
+
+void MacOSMainWindowBridge::toggleFullScreen()
+{
+    installFullScreenPresentationBehavior(nsWindowForQWindow(m_window));
+    MainWindowBridge::toggleFullScreen();
+}
+
+void MacOSMainWindowBridge::activate()
+{
+    MainWindowBridge::activate();
+
+    NSWindow* nsWindow = nsWindowForQWindow(m_window);
+    if (!nsWindow) {
+        return;
+    }
+
+    [[NSApplication sharedApplication] activateIgnoringOtherApps:YES];
+    [nsWindow makeKeyAndOrderFront:nil];
+    [nsWindow makeFirstResponder:nsWindow.contentView];
 }
 
 void MacOSMainWindowBridge::setFileModified(bool modified)
@@ -77,4 +178,26 @@ void MacOSMainWindowBridge::setFileModified(bool modified)
 
     [nsWindow setDocumentEdited:modified];
     emit fileModifiedChanged();
+}
+
+void MacOSMainWindowBridge::setFullScreenPresentationOptions(bool fullScreen)
+{
+    NSApplication* application = [NSApplication sharedApplication];
+    NSWindow* nsWindow = nsWindowForQWindow(m_window);
+
+    if (!fullScreen) {
+        [nsWindow setTitleVisibility:NSWindowTitleVisible];
+        [NSMenu setMenuBarVisible:YES];
+        [application setPresentationOptions:NSApplicationPresentationDefault];
+        return;
+    }
+
+    [nsWindow setTitleVisibility:NSWindowTitleHidden];
+    [NSMenu setMenuBarVisible:NO];
+    NSApplicationPresentationOptions options = [application presentationOptions];
+    options &= ~(NSApplicationPresentationAutoHideMenuBar
+                 | NSApplicationPresentationAutoHideDock
+                 | NSApplicationPresentationAutoHideToolbar);
+    options |= NSApplicationPresentationHideMenuBar | NSApplicationPresentationHideDock;
+    [application setPresentationOptions:options];
 }

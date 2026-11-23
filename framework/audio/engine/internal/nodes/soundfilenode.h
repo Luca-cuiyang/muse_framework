@@ -43,6 +43,7 @@ public:
     const AudioInputParams& inputParams() const override;
     void applyInputParams(const AudioInputParams& requiredParams) override;
     async::Channel<AudioInputParams> inputParamsChanged() const override;
+    void setPlaybackSpeed(float speed) override;
 
     void prepareToPlay() override;
     bool readyToPlay() const override;
@@ -68,6 +69,7 @@ private:
     double m_clipEndFrame = 0.0;
     double m_fadeInFrames = 0.0;
     double m_fadeOutFrames = 0.0;
+    float m_basePlaybackSpeed = 1.0f;
 };
 }
 

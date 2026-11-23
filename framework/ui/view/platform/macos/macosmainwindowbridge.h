@@ -37,13 +37,20 @@ class MacOSMainWindowBridge : public MainWindowBridge, public async::Asyncable
 
 public:
     explicit MacOSMainWindowBridge(QObject* parent = nullptr);
+    ~MacOSMainWindowBridge() override;
 
     bool fileModified() const override;
+    void toggleFullScreen() override;
+    void activate() override;
 
 public slots:
     void setFileModified(bool modified) override;
 
 private:
     void init() override;
+    void setFullScreenPresentationOptions(bool fullScreen);
+
+    void* m_enterFullScreenObserver = nullptr;
+    void* m_exitFullScreenObserver = nullptr;
 };
 }

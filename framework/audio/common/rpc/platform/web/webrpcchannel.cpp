@@ -97,7 +97,7 @@ void WebRpcChannel::process()
     //noop
 }
 
-void WebRpcChannel::send(const Msg& msg, const ResponseHandler& onResponse)
+void WebRpcChannel::send(const Msg& msg, const Handler& onResponse)
 {
     RPCLOG() << "ctxId: " << msg.ctxId
              << ", callId: " << msg.callId
@@ -148,6 +148,10 @@ void WebRpcChannel::receive(const Msg& msg)
              << ", type: " << to_string(msg.type)
              << ", data.size: " << msg.data.size();
 
+    // all
+    if (m_data.listenerAll) {
+        m_data.listenerAll(msg);
+    }
     switch (msg.type) {
     case MsgType::Stream: {
         auto it = m_data.onStreams.find(msg.callId);
@@ -156,16 +160,13 @@ void WebRpcChannel::receive(const Msg& msg)
         }
     } break;
     case MsgType::Request: {
-        auto it = m_data.onRequests.find({ msg.ctxId, msg.code });
+        auto it = m_data.onRequests.find(msg.code);
         if (it != m_data.onRequests.end() && it->second) {
-            Msg resp = it->second(msg);
-            if (resp.type != MsgType::ResponseDelayed) {
-                send(resp);
-            }
+            it->second(msg);
         }
     } break;
     case MsgType::Notification: {
-        auto it = m_data.onNotifications.find({ msg.ctxId, msg.code });
+        auto it = m_data.onNotifications.find(msg.code);
         if (it != m_data.onNotifications.end() && it->second) {
             it->second(msg);
         }
@@ -186,14 +187,19 @@ void WebRpcChannel::receive(const Msg& msg)
     }
 }
 
-void WebRpcChannel::onRequest(CtxId ctxId, MsgCode code, RequestHandler h)
+void WebRpcChannel::onRequest(MsgCode code, Handler h)
 {
-    m_data.onRequests[{ ctxId, code }] = h;
+    m_data.onRequests[code] = h;
 }
 
-void WebRpcChannel::onNotification(CtxId ctxId, MsgCode code, NotificationHandler h)
+void WebRpcChannel::onNotification(MsgCode code, Handler h)
 {
-    m_data.onNotifications[{ ctxId, code }] = h;
+    m_data.onNotifications[code] = h;
+}
+
+void WebRpcChannel::listenAll(Handler h)
+{
+    m_data.listenerAll = h;
 }
 
 void WebRpcChannel::addStream(std::shared_ptr<IRpcStream> s)

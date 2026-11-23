@@ -167,8 +167,6 @@ else()
         internal/codecs/audiofiledecoder.h
         internal/codecs/ffmpegdecoder.cpp
         internal/codecs/ffmpegdecoder.h
-        internal/codecs/timestretcher.cpp
-        internal/codecs/timestretcher.h
     )
 
     # vorbisdecoder.cpp includes stb_vorbis.c, which defines short macros (L, C, R)
@@ -221,7 +219,6 @@ else()
 
     add_subdirectory(../thirdparty/fluidsynth fluidsynth)
     target_link_libraries(muse_audio_engine PRIVATE fluidsynth)
-    target_link_libraries(muse_audio_engine PRIVATE soundtouch)
 endif() # End of real engine
 
 if (MUSE_MODULE_AUDIO_EXPORT)
