@@ -66,6 +66,8 @@ AccessibilityController::AccessibilityController(const muse::modularity::Context
 
 AccessibilityController::~AccessibilityController()
 {
+    m_lifecycleActive.store(false);
+    accessibilityLifecycleActive.store(false);
 }
 
 QAccessibleInterface* AccessibilityController::accessibleInterface(QObject* window)
@@ -79,6 +81,8 @@ QAccessibleInterface* AccessibilityController::accessibleInterface(QObject* wind
 
 void AccessibilityController::deinit()
 {
+    m_lifecycleActive.store(false);
+    accessibilityLifecycleActive.store(false);
     m_pretendFocusTimer.stop();
 
     QWindow* window = mainWindow()->qWindow();
@@ -96,6 +100,10 @@ void AccessibilityController::setAccessibilityEnabled(bool enabled)
 
 bool AccessibilityController::isEnabled() const
 {
+    if (!m_lifecycleActive.load()) {
+        return false;
+    }
+
     if (!appRootObject()->isAccessibilityActive()) {
         return false;
     }
@@ -359,6 +367,10 @@ void AccessibilityController::setIgnoreQtAccessibilityEvents(bool ignore)
 
 void AccessibilityController::propertyChanged(IAccessible* item, IAccessible::Property property, const Val& value)
 {
+    if (!m_lifecycleActive.load()) {
+        return;
+    }
+
     // NOTE: Handling of properties must match accessibleiteminterface.cpp.
     // See AccessibleItemInterface::text(type) among others.
     const Item& it = findItem(item);
@@ -435,7 +447,7 @@ void AccessibilityController::propertyChanged(IAccessible* item, IAccessible::Pr
 
 void AccessibilityController::stateChanged(IAccessible* aitem, State state, bool arg)
 {
-    if (!isEnabled()) {
+    if (!m_lifecycleActive.load() || !m_enabled) {
         return;
     }
 

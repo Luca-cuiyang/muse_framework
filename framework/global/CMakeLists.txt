@@ -110,6 +110,7 @@ target_sources(muse_global PRIVATE
     types/version.h
     types/number.h
     types/config.h
+    types/videoexportstate.h
     types/ratio.h
     types/secs.h
     types/color.cpp

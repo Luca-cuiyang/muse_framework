@@ -2,7 +2,7 @@
  * SPDX-License-Identifier: GPL-3.0-only
  * MuseScore-CLA-applies
  *
- * DB Score - 账号模型
+ * DB绘谱 - 账号模型
  */
 
 #ifndef MUSE_CLOUD_DBSCOREACCOUNTMODEL_H

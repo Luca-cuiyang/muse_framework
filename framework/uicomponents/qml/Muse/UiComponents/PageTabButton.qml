@@ -39,6 +39,7 @@ RadioDelegate {
     property font selectedStateFont: ui.theme.largeBodyBoldFont
 
     property alias navigation: navCtrl
+    property int backgroundRadius: 10
 
     height: isVertical ? 36 : 44
 
@@ -71,16 +72,18 @@ RadioDelegate {
     background: Rectangle {
         id: backgroundRect
         anchors.fill: parent
+        anchors.margins: root.isVertical ? 2 : 4
 
-        color: ui.theme.backgroundPrimaryColor
-        opacity: ui.theme.buttonOpacityNormal
+        color: "transparent"
+        opacity: 1.0
 
-        border.color: navCtrl.highlight ? ui.theme.fontPrimaryColor : ui.theme.strokeColor
-        border.width: navCtrl.highlight ? ui.theme.navCtrlBorderWidth : ui.theme.borderWidth
+        radius: root.backgroundRadius
+        border.color: navCtrl.highlight ? ui.theme.focusColor : "transparent"
+        border.width: navCtrl.highlight ? ui.theme.navCtrlBorderWidth : 0
 
         Rectangle {
             id: line
-            color: ui.theme.accentColor
+            color: "transparent"
             visible: false
             anchors.margins: backgroundRect.border.width
 
@@ -177,8 +180,7 @@ RadioDelegate {
 
             PropertyChanges {
                 target: backgroundRect
-                color: ui.theme.buttonColor
-                opacity: ui.theme.buttonOpacityHover
+                color: Utils.colorWithAlpha(ui.theme.accentColor, 0.08)
             }
         },
 
@@ -188,8 +190,7 @@ RadioDelegate {
 
             PropertyChanges {
                 target: backgroundRect
-                color: ui.theme.buttonColor
-                opacity: ui.theme.buttonOpacityHit
+                color: Utils.colorWithAlpha(ui.theme.accentColor, 0.16)
             }
         },
 
@@ -199,18 +200,13 @@ RadioDelegate {
 
             PropertyChanges {
                 target: backgroundRect
-                color: Utils.colorWithAlpha(ui.theme.accentColor, 0.1)
-                opacity: 1.0
-            }
-
-            PropertyChanges {
-                target: line
-                visible: true
+                color: Utils.colorWithAlpha(ui.theme.accentColor, 0.14)
             }
 
             PropertyChanges {
                 target: textLabel
                 font: root.selectedStateFont
+                color: ui.theme.accentColor
             }
         }
     ]

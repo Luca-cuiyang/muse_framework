@@ -95,16 +95,16 @@ TabButton {
         NavigationFocusBorder { navigationCtrl: navCtrl }
 
         Rectangle {
-            id: selectedUnderline
+            id: selectedBackground
 
             anchors.left: parent.left
             anchors.right: parent.right
+            anchors.top: parent.top
             anchors.bottom: parent.bottom
+            anchors.margins: 3
 
-            height: 2
-
-            visible: isCurrent
-            color: ui.theme.accentColor
+            radius: 8
+            color: "transparent"
         }
     }
 
@@ -117,6 +117,11 @@ TabButton {
                 target: contentItem
                 opacity: 1
             }
+
+            PropertyChanges {
+                target: selectedBackground
+                color: Utils.colorWithAlpha(ui.theme.accentColor, 0.07)
+            }
         },
 
         State {
@@ -126,6 +131,12 @@ TabButton {
             PropertyChanges {
                 target: textLabel
                 opacity: 1
+                color: ui.theme.accentColor
+            }
+
+            PropertyChanges {
+                target: selectedBackground
+                color: Utils.colorWithAlpha(ui.theme.accentColor, 0.14)
             }
         }
     ]

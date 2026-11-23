@@ -72,6 +72,7 @@ FocusScope {
     property font iconFont: ui.theme.iconsFont
     property color iconColor: ui.theme.fontPrimaryColor
     property font textFont: ui.theme.bodyFont
+    property color textColor: accentButton ? "#16213A" : ui.theme.fontPrimaryColor
 
     property bool transparent: false
     property bool accentButton: false
@@ -85,7 +86,7 @@ FocusScope {
     property real margins: isNarrow ? 12 : 16
     property real minWidth: isNarrow ? 24 : 132
 
-    property real backgroundRadius: 3
+    property real backgroundRadius: 8
 
     property bool drawFocusBorderInsideRect: false
 
@@ -180,7 +181,7 @@ FocusScope {
             id: background
 
             color: root.normalColor
-            opacity: ui.theme.buttonOpacityNormal
+            opacity: root.accentButton ? 1.0 : ui.theme.buttonOpacityNormal
 
             radius: root.backgroundRadius
             border.width: ui.theme.borderWidth
@@ -199,7 +200,7 @@ FocusScope {
                     PropertyChanges {
                         target: background
                         color: root.hoverHitColor
-                        opacity: ui.theme.buttonOpacityHit
+                        opacity: root.accentButton ? 0.82 : ui.theme.buttonOpacityHit
                     }
                 },
 
@@ -210,7 +211,7 @@ FocusScope {
                     PropertyChanges {
                         target: background
                         color: root.hoverHitColor
-                        opacity: ui.theme.buttonOpacityHover
+                        opacity: root.accentButton ? 0.9 : ui.theme.buttonOpacityHover
                     }
                 }
             ]
@@ -220,6 +221,7 @@ FocusScope {
     Loader {
         id: contentLoader
 
+        z: 1
         anchors.verticalCenter: parent ? parent.verticalCenter : undefined
         anchors.horizontalCenter: parent ? parent.horizontalCenter : undefined
 
@@ -237,7 +239,7 @@ FocusScope {
             width: Math.min(implicitWidth, root.width)
             spacing: 4
 
-            StyledIconLabel {
+            DbIconLabel {
                 Layout.alignment: Qt.AlignHCenter
                 iconCode: root.icon
                 font: root.iconFont
@@ -249,6 +251,7 @@ FocusScope {
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignHCenter
                 text: root.text
+                color: root.textColor
                 font: root.textFont
                 textFormat: root.textFormat
                 wrapMode: Text.Wrap
@@ -265,7 +268,7 @@ FocusScope {
             width: Math.min(implicitWidth, root.width)
             spacing: 8
 
-            StyledIconLabel {
+            DbIconLabel {
                 Layout.alignment: Qt.AlignVCenter
                 iconCode: root.icon
                 font: root.iconFont
@@ -277,6 +280,7 @@ FocusScope {
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignVCenter
                 text: root.text
+                color: root.textColor
                 font: root.textFont
                 textFormat: root.textFormat
                 wrapMode: Text.Wrap

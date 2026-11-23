@@ -38,6 +38,14 @@ Item {
         readonly property int sideMargin: 24
     }
 
+    Rectangle {
+        anchors.fill: parent
+        radius: 12
+        color: ui.theme.backgroundSecondaryColor
+        border.width: 1
+        border.color: ui.theme.strokeColor
+    }
+
     StyledFlickable {
         id: flickable
 
@@ -79,6 +87,7 @@ Item {
 
                     title: qsTrc("update", "查看 %1 版本说明").arg(modelData["version"])
                     titleFont: ui.theme.largeBodyBoldFont
+                    showCardBackground: true
 
                     isExpanded: false
 

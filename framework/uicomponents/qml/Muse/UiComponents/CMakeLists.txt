@@ -116,6 +116,7 @@ qt_add_qml_module(muse_uicomponents_qml
         CheckBox.qml
         ColorPicker.qml
         ContextMenuLoader.qml
+        DbIconLabel.qml
         ExpandableBlank.qml
         ExpandableBlankSection.qml
         FilePicker.qml

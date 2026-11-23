@@ -960,10 +960,27 @@ Ret AudioContext::doSaveSoundTrack(io::IODevice& dstDevice, const SoundTrackForm
     Ret ret;
     Operation func = [this, writer, &ret]() {
         setMode(ProcessMode::PlayingOffline);
-        ret = writer->write();
-        m_mixer->setOutputSpec(outputSpec());
-        setMode(ProcessMode::Idle);
-        m_player->seek(TimePosition::zero(m_outputSpec.sampleRate));
+        DEFER {
+            try {
+                m_mixer->setOutputSpec(outputSpec());
+                setMode(ProcessMode::Idle);
+                m_player->seek(TimePosition::zero(m_outputSpec.sampleRate));
+            } catch (const std::exception& error) {
+                LOGE() << "failed to restore audio engine after export: " << error.what();
+            } catch (...) {
+                LOGE() << "failed to restore audio engine after export";
+            }
+        };
+
+        try {
+            ret = writer->write();
+        } catch (const std::exception& error) {
+            LOGE() << "soundtrack export failed: " << error.what();
+            ret = make_ret(Ret::Code::InternalError, std::string(error.what()));
+        } catch (...) {
+            LOGE() << "soundtrack export failed with an unknown exception";
+            ret = make_ret(Ret::Code::InternalError, std::string("音频导出发生未知错误"));
+        }
     };
 
     if (m_execOperation) {

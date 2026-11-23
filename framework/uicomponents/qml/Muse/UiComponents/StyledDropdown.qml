@@ -149,7 +149,7 @@ Item {
             border.width: ui.theme.borderWidth
             border.color: ui.theme.strokeColor
             color: ui.theme.buttonColor
-            radius: 3
+            radius: 8
             opacity: 0.7
 
             NavigationFocusBorder { navigationCtrl: navCtrl }
@@ -193,7 +193,7 @@ Item {
                         text: root.displayText
                     }
 
-                    StyledIconLabel {
+                    DbIconLabel {
                         Layout.alignment: Qt.AlignVCenter
                         iconCode: IconCode.SMALL_ARROW_DOWN
                     }

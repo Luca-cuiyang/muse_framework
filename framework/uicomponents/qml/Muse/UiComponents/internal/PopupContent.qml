@@ -110,7 +110,7 @@ FocusScope {
             anchors.fill: parent
 
             color: ui.theme.popupBackgroundColor
-            radius: 4
+            radius: 10
 
             Item {
                 id: contentBody

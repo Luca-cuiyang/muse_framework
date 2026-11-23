@@ -39,6 +39,7 @@ FlatButton {
     accentButton: Boolean(itemData) && (itemData.checked || menuLoader.isMenuOpened)
 
     text: Boolean(itemData) && itemData.showTitle ? itemData.title : ""
+    buttonType: Boolean(text) ? FlatButton.Horizontal : FlatButton.IconOnly
 
     textFont: Boolean(itemData) && itemData.isTitleBold ? ui.theme.largeBodyFont : ui.theme.bodyFont
 
@@ -51,6 +52,28 @@ FlatButton {
 
     orientation: Qt.Horizontal
     transparent: !accentButton && Boolean(itemData) ? itemData.isTransparent : false
+
+    contentItem: Row {
+        spacing: dbToolIcon.visible && dbToolTitle.visible ? 8 : 0
+
+        DbIconLabel {
+            id: dbToolIcon
+            anchors.verticalCenter: parent.verticalCenter
+            iconCode: root.icon
+            font: root.iconFont
+            color: root.iconColor
+            visible: root.icon !== IconCode.NONE
+        }
+
+        StyledTextLabel {
+            id: dbToolTitle
+            anchors.verticalCenter: parent.verticalCenter
+            text: root.text
+            font: root.textFont
+            color: root.textColor
+            visible: Boolean(root.text)
+        }
+    }
 
     enabled: Boolean(itemData) ? itemData.enabled : false
 

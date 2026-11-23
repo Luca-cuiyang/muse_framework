@@ -22,6 +22,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <memory>
 #include <QObject>
 #include <QList>
@@ -192,6 +193,7 @@ private:
     bool m_inited = false;
     bool m_enabled = false;
     bool m_treeConnected = false;
+    std::atomic_bool m_lifecycleActive = true;
 
     bool m_ignorePanelChangingVoice = false;
     bool m_needToVoicePanelInfo = false;

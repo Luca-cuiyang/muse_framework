@@ -59,8 +59,14 @@ struct muse::audio::synth::Fluid {
 
     ~Fluid()
     {
-        delete_fluid_synth(synth);
-        delete_fluid_settings(settings);
+        if (synth) {
+            delete_fluid_synth(synth);
+            synth = nullptr;
+        }
+        if (settings) {
+            delete_fluid_settings(settings);
+            settings = nullptr;
+        }
     }
 };
 
@@ -289,9 +295,14 @@ void FluidSynth::setOutputSpec(const OutputSpec& spec)
 
     if (m_fluid->synth) {
         delete_fluid_synth(m_fluid->synth);
+        m_fluid->synth = nullptr;
     }
 
     createFluidInstance();
+    if (!m_fluid->synth) {
+        LOGE() << "failed to create FluidSynth instance for output spec";
+        return;
+    }
     addSoundFonts(std::vector<io::path_t>(m_sfontPaths.cbegin(), m_sfontPaths.cend()));
 
     if (m_setupData.isValid()) {

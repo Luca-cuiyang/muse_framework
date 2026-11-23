@@ -423,7 +423,7 @@ QStringList UiConfiguration::possibleAccentColors() const
         "#E39CEB",
         "#F298D3",
         "#FF92B6",
-        //! DB Score 主题色（皮肤）
+        //! DB绘谱 主题色（皮肤）
         "#EA580C",
         "#0284C7",
         "#7C3AED",
@@ -449,7 +449,7 @@ QStringList UiConfiguration::possibleAccentColors() const
         "#D830EA",
         "#E03DAA",
         "#E9447B",
-        //! DB Score 主题色（皮肤）
+        //! DB绘谱 主题色（皮肤）
         "#FB923C",
         "#38BDF8",
         "#A78BFA",

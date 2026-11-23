@@ -2,7 +2,7 @@
  * SPDX-License-Identifier: GPL-3.0-only
  * MuseScore-CLA-applies
  *
- * DB Score - 授权服务接口
+ * DB绘谱 - 授权服务接口
  */
 
 #ifndef MUSE_CLOUD_IDBSCOREAUTHORIZATIONSERVICE_H

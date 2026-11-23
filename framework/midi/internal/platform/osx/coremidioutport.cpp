@@ -143,13 +143,13 @@ void CoreMidiOutPort::initCore()
         }
     };
 
-    result = MIDIClientCreate(CFSTR("DB Score"), onCoreMidiNotificationReceived, this, &m_core->client);
+    result = MIDIClientCreate(CFSTR("DB绘谱"), onCoreMidiNotificationReceived, this, &m_core->client);
     if (result != noErr) {
         LOGE() << "failed create midi output client";
         return;
     }
 
-    result = MIDIOutputPortCreate(m_core->client, CFSTR("DB Score output port"), &m_core->outputPort);
+    result = MIDIOutputPortCreate(m_core->client, CFSTR("DB绘谱 output port"), &m_core->outputPort);
     if (result != noErr) {
         LOGE() << "failed create midi output port";
     }

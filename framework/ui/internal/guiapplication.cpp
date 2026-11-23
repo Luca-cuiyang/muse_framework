@@ -91,7 +91,7 @@ void GuiApplication::doSetup(const std::shared_ptr<CmdOptions>& options)
 void GuiApplication::setupGraphicsApi()
 {
 #ifdef Q_OS_WIN
-    // DB Score: x64 程序运行在 ARM64 Windows（模拟）时，d3d11 渲染会失效导致界面白屏。
+    // DB绘谱: x64 程序运行在 ARM64 Windows（模拟）时，d3d11 渲染会失效导致界面白屏。
     // 这里自动切换到软件渲染，保证虚拟机和正常 x64 电脑都能正常显示。
     if (isRunningOnArm64Windows()) {
         LOGI() << "Detected ARM64 Windows, forcing software rendering";

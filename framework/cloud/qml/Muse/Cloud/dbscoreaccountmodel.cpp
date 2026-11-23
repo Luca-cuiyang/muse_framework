@@ -2,7 +2,7 @@
  * SPDX-License-Identifier: GPL-3.0-only
  * MuseScore-CLA-applies
  *
- * DB Score - 账号模型
+ * DB绘谱 - 账号模型
  */
 
 #include "dbscoreaccountmodel.h"
@@ -78,9 +78,9 @@ QString DbScoreAccountModel::statusText() const
     switch (authorization()->state()) {
     case IDbScoreAuthorizationService::LicenseState::Active:
         if (authorization()->isPermanentMember()) {
-            return QStringLiteral("DB Score 永久会员");
+            return QStringLiteral("DB绘谱 永久会员");
         }
-        return QStringLiteral("DB Score 年度会员，到期时间：") + expireAtText();
+        return QStringLiteral("DB绘谱 年度会员，到期时间：") + expireAtText();
     case IDbScoreAuthorizationService::LicenseState::Trial:
         return QStringLiteral("3 天试用中，剩余：") + trialHoursText();
     case IDbScoreAuthorizationService::LicenseState::TrialExpired:
@@ -491,7 +491,7 @@ void DbScoreAccountModel::openPurchasePage()
     m_paymentQrSource.clear();
     m_paymentPlanName = authorization()->renewalPlanName();
     if (m_paymentPlanName.isEmpty()) {
-        m_paymentPlanName = QStringLiteral("DB Score 年度会员");
+        m_paymentPlanName = QStringLiteral("DB绘谱 年度会员");
     }
     const int previewPriceFen = authorization()->renewalPriceFen();
     m_paymentAmountText = previewPriceFen > 0
@@ -698,7 +698,8 @@ void DbScoreAccountModel::loadOrders()
         m_ordersList.clear();
         for (const QVariant& value : data.value("orders").toList()) {
             const QVariantMap order = value.toMap();
-            if (order.value("product").toString().trimmed() == QStringLiteral("DB Score")) {
+            const QString product = order.value("product").toString().trimmed();
+            if (product == QStringLiteral("DB Score") || product == QStringLiteral("DB绘谱")) {
                 m_ordersList.append(order);
             }
         }

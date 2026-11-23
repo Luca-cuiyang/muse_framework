@@ -47,6 +47,7 @@ Item {
 
     property int maximumWidth: -1
     property bool isMultiline: height > rowHeight
+    property bool showGroupSurface: false
 
     property NavigationPanel navigationPanel: NavigationPanel {
         name: root.objectName !== "" ? root.objectName : "ToolBarView"
@@ -60,6 +61,18 @@ Item {
 
     width: content.width + leftPadding + rightPadding
     height: content.height + topPadding + bottomPadding
+
+    Rectangle {
+        anchors.fill: parent
+        z: -1
+        visible: root.showGroupSurface && root.width > 0 && root.height > 0
+        radius: 10
+        color: Utils.colorWithAlpha(ui.theme.backgroundSecondaryColor,
+                                    ui.theme.isDark ? 0.72 : 0.58)
+        border.width: visible ? 1 : 0
+        border.color: Utils.colorWithAlpha(ui.theme.strokeColor,
+                                           ui.theme.isDark ? 0.9 : 0.75)
+    }
 
     Component.onCompleted: {
         if (root.model) {

@@ -22,6 +22,8 @@
 
 #pragma once
 
+#include <memory>
+
 #include <QObject>
 #include <QQmlParserStatus>
 #include <QQuickItem>
@@ -250,6 +252,7 @@ private:
     bool m_ignored = false;
     QQuickItem* m_visualItem = nullptr;
     QWindow* m_window = nullptr;
+    std::shared_ptr<accessibility::IAccessibilityController> m_registeredController;
     QMap<State, bool> m_state;
     async::Channel<Property, Val> m_accessiblePropertyChanged;
     async::Channel<State, bool> m_accessibleStateChanged;

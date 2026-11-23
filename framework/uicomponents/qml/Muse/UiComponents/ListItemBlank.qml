@@ -31,12 +31,13 @@ FocusableControl {
     property bool isSelected: false
     // HACK: Workaround debug assert failure "coreIndex >= 0" (https://bugreports.qt.io/browse/QTBUG-124476)
     //property alias radius: background.radius
-    property double radius: 0
+    property double radius: 8
     background.radius: radius
 
     property color normalColor: "transparent"
     property color hoverHitColor: ui.theme.buttonColor
-    property color selectedColor: ui.theme.accentColor
+    property color selectedColor: Utils.colorWithAlpha(ui.theme.accentColor,
+                                                       ui.theme.isDark ? 0.24 : 0.14)
 
     signal clicked(var mouse)
     signal doubleClicked(var mouse)
@@ -137,8 +138,8 @@ FocusableControl {
 
             PropertyChanges {
                 target: root.background
-                opacity: ui.theme.accentOpacityNormal
-                color: ui.theme.accentColor
+                opacity: 1.0
+                color: root.selectedColor
             }
         },
 
@@ -148,8 +149,9 @@ FocusableControl {
 
             PropertyChanges {
                 target: root.background
-                opacity: ui.theme.accentOpacityHover
-                color: ui.theme.accentColor
+                opacity: 1.0
+                color: Utils.colorWithAlpha(ui.theme.accentColor,
+                                            ui.theme.isDark ? 0.3 : 0.18)
             }
         },
 
@@ -159,8 +161,9 @@ FocusableControl {
 
             PropertyChanges {
                 target: root.background
-                opacity: ui.theme.accentOpacityHit
-                color: ui.theme.accentColor
+                opacity: 1.0
+                color: Utils.colorWithAlpha(ui.theme.accentColor,
+                                            ui.theme.isDark ? 0.2 : 0.1)
             }
         }
     ]

@@ -181,18 +181,24 @@ void AudioEngine::execOperation(OperationType type, const Operation& func)
     m_operationType = type;
     AudioSanitizer::setOperationType(type);
 
-    if (m_operationType == OperationType::QuickOperation) {
-        m_quickOperationWaitMutex.lock();
+    std::unique_lock<std::mutex> quickOperationLock(
+        m_quickOperationWaitMutex,
+        std::defer_lock);
+    DEFER {
+        m_operationType = oldOperationType;
+        AudioSanitizer::setOperationType(oldOperationType);
+    };
+
+    try {
+        if (m_operationType == OperationType::QuickOperation) {
+            quickOperationLock.lock();
+        }
+        func();
+    } catch (const std::exception& error) {
+        LOGE() << "audio engine operation failed: " << error.what();
+    } catch (...) {
+        LOGE() << "audio engine operation failed with an unknown exception";
     }
-
-    func();
-
-    if (m_operationType == OperationType::QuickOperation) {
-        m_quickOperationWaitMutex.unlock();
-    }
-
-    m_operationType = oldOperationType;
-    AudioSanitizer::setOperationType(oldOperationType);
 }
 
 samples_t AudioEngine::fillSilent(float* buffer, samples_t samplesPerChannel)

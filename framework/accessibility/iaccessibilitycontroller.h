@@ -23,10 +23,15 @@
 #ifndef MUSE_ACCESSIBILITY_IACCESSIBILITYCONTROLLER_H
 #define MUSE_ACCESSIBILITY_IACCESSIBILITYCONTROLLER_H
 
+#include <atomic>
+
 #include "modularity/imoduleinterface.h"
 #include "iaccessible.h"
 
 namespace muse::accessibility {
+//! Process-wide teardown flag for QML objects that may outlive module deinit.
+inline std::atomic_bool accessibilityLifecycleActive = true;
+
 class IAccessibilityController : MODULE_CONTEXT_INTERFACE
 {
     INTERFACE_ID(IAccessibilityController)

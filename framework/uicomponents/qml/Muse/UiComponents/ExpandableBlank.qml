@@ -21,6 +21,7 @@
  */
 import QtQuick
 
+import Muse.Ui
 import Muse.UiComponents
 
 FocusScope {
@@ -36,12 +37,24 @@ FocusScope {
     property alias isExpanded: expandableSection.isExpanded
 
     property alias navigation: expandableSection.navigation
+    property bool showCardBackground: false
 
     implicitHeight: contentColumn.height
     implicitWidth: parent.width
 
     Keys.onSpacePressed: {
         root.isExpanded = !root.isExpanded
+    }
+
+    Rectangle {
+        anchors.fill: parent
+        z: -1
+        visible: root.showCardBackground
+        radius: 10
+        color: ui.theme.popupBackgroundColor
+        border.width: visible ? 1 : 0
+        border.color: Utils.colorWithAlpha(ui.theme.strokeColor,
+                                           ui.theme.isDark ? 0.95 : 0.8)
     }
 
     Column {

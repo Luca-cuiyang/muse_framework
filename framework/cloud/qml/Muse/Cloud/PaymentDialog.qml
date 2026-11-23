@@ -1,6 +1,6 @@
 /*
  * SPDX-License-Identifier: GPL-3.0-only
- * DB Score - 微信支付二维码
+ * DB绘谱 - 微信支付二维码
  */
 pragma ComponentBehavior: Bound
 
@@ -34,7 +34,7 @@ Dialog {
 
     background: Rectangle {
         radius: 20
-        color: ui.theme.backgroundPrimaryColor
+        color: ui.theme.popupBackgroundColor
         border.width: 1
         border.color: ui.theme.strokeColor
     }
@@ -116,7 +116,7 @@ Dialog {
             Layout.rightMargin: 24
             text: root.statusText
             color: root.statusText.indexOf(qsTrc("appshell", "支付成功")) >= 0
-                   ? "#2ECC71"
+                   ? (ui.theme.isDark ? "#6EE7A0" : "#16845B")
                    : ui.theme.fontPrimaryColor
             font: ui.theme.bodyFont
             horizontalAlignment: Text.AlignHCenter

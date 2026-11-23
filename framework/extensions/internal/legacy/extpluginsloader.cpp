@@ -39,7 +39,7 @@ static Uri makeUri(const io::path_t& rootPath, const io::path_t& path)
     //! NOTE path_t stores UTF-8 bytes internally, so size() returns a byte count,
     //! while QString::sliced() expects UTF-16 code-unit indices. Converting both
     //! to QString first keeps the offset correct even when the install path
-    //! contains non-ASCII characters (e.g. "DB score制谱大师.app").
+    //! contains non-ASCII characters (e.g. "DB绘谱.app").
     const QString rootPathStr = rootPath.toQString();
     const QString pathStr = path.toQString();
     return Uri("extension://plugin/v1" + pathStr.sliced(rootPathStr.size()).toLower().toStdString());

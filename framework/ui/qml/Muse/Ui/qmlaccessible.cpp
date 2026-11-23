@@ -43,14 +43,19 @@ AccessibleItem::AccessibleItem(const muse::modularity::ContextPtr& iocCtx, QObje
 
 AccessibleItem::~AccessibleItem()
 {
+    if (!accessibilityLifecycleActive.load()) {
+        return;
+    }
+
     QList<AccessibleItem*> children = m_children;
     for (AccessibleItem* ch : children) {
         ch->setAccessibleParent(nullptr);
     }
 
-    if (accessibilityController() && accessibilityController()->isReg(this)) {
-        accessibilityController()->unreg(this);
+    if (m_registeredController && m_registeredController->isReg(this)) {
+        m_registeredController->unreg(this);
     }
+    m_registeredController.reset();
 
     if (m_accessibleParent) {
         m_accessibleParent->removeChild(this);
@@ -386,8 +391,13 @@ void AccessibleItem::classBegin()
 
 void AccessibleItem::componentComplete()
 {
-    if (accessibilityController() && !accessibilityController()->isReg(this)) {
-        accessibilityController()->reg(this);
+    if (!accessibilityLifecycleActive.load()) {
+        return;
+    }
+
+    m_registeredController = accessibilityController();
+    if (m_registeredController && !m_registeredController->isReg(this)) {
+        m_registeredController->reg(this);
     }
 }
 
@@ -478,6 +488,10 @@ QWindow* AccessibleItem::window() const
 
 void AccessibleItem::setState(IAccessible::State st, bool arg)
 {
+    if (!accessibilityLifecycleActive.load()) {
+        return;
+    }
+
     if (m_state.value(st, false) == arg) {
         return;
     }

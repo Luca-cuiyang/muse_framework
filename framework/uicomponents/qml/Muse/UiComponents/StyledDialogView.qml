@@ -100,8 +100,8 @@ DialogView {
         Rectangle {
             id: contentBackground
             anchors.fill: parent
-            color: ui.theme.backgroundPrimaryColor
-            radius: root.frameless ? 4 : 0
+            color: ui.theme.popupBackgroundColor
+            radius: root.frameless ? 12 : 0
             border.width: root.frameless ? 1 : 0
             border.color: ui.theme.strokeColor
         }

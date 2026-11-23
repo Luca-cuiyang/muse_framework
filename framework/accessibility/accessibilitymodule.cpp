@@ -73,6 +73,10 @@ void AccessibilityModule::registerApi()
 
 static QAccessibleInterface* accessibleFactory(const QString& classname, QObject* object)
 {
+    if (!accessibilityLifecycleActive.load()) {
+        return AccessibleStub::accessibleInterface(object);
+    }
+
     auto accr = globalIoc()->resolve<IQAccessibleInterfaceRegister>("accessibility");
     if (accr) {
         auto interfaceGetter = accr->interfaceGetter(classname);
@@ -92,6 +96,12 @@ void AccessibilityModule::onInit(const IApplication::RunMode&)
     if (appRoot) {
         appRoot->init();
     }
+}
+
+void AccessibilityModule::onDeinit()
+{
+    accessibilityLifecycleActive.store(false);
+    QAccessible::removeFactory(accessibleFactory);
 }
 
 IContextSetup* AccessibilityModule::newContext(const muse::modularity::ContextPtr& ctx) const

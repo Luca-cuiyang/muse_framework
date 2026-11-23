@@ -45,7 +45,7 @@ RadioDelegate {
     property bool transparent: false
     property color normalColor: transparent ? "transparent" : ui.theme.buttonColor
     property color hoverHitColor: ui.theme.buttonColor
-    property color checkedColor: ui.theme.accentColor
+    property color checkedColor: Utils.colorWithAlpha(ui.theme.accentColor, 0.16)
 
     property alias navigation: navCtrl
     property alias navigationFocusBorder: navigationFocusBorder
@@ -115,11 +115,11 @@ RadioDelegate {
         }
 
         color: root.checked ? root.checkedColor : root.normalColor
-        opacity: ui.theme.buttonOpacityNormal
+        opacity: root.checked ? 1.0 : ui.theme.buttonOpacityNormal
 
-        border.width: ui.theme.borderWidth
-        border.color: ui.theme.strokeColor
-        radius: 2
+        border.width: root.checked ? 1 : ui.theme.borderWidth
+        border.color: root.checked ? ui.theme.accentColor : ui.theme.strokeColor
+        radius: 8
 
         states: [
             State {
@@ -164,9 +164,10 @@ RadioDelegate {
         Component {
             id: iconComponent
 
-            StyledIconLabel {
+            DbIconLabel {
                 iconCode: root.iconCode
                 font.pixelSize: root.iconFontSize
+                color: root.checked ? ui.theme.accentColor : ui.theme.fontPrimaryColor
             }
         }
 
@@ -176,6 +177,7 @@ RadioDelegate {
             StyledTextLabel {
                 text: root.text
                 maximumLineCount: 1
+                color: root.checked ? ui.theme.accentColor : ui.theme.fontPrimaryColor
             }
         }
     }

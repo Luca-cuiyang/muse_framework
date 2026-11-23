@@ -39,6 +39,7 @@ public:
     void registerApi() override;
 
     void onInit(const IApplication::RunMode& mode) override;
+    void onDeinit() override;
 
     modularity::IContextSetup* newContext(const muse::modularity::ContextPtr& ctx) const override;
 };
