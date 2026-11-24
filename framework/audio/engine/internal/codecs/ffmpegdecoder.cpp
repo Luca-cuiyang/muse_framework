@@ -25,6 +25,9 @@
 #include <cstdio>
 #include <string>
 
+#include <QCoreApplication>
+#include <QDir>
+
 #include "global/dlib.h"
 
 extern "C" {
