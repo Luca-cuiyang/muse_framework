@@ -77,7 +77,7 @@ Item {
                 ExpandableBlank {
                     width: parent.width
 
-                    title: qsTrc("update", "Read the %1 release notes").arg(modelData["version"])
+                    title: qsTrc("update", "查看 %1 版本说明").arg(modelData["version"])
                     titleFont: ui.theme.largeBodyBoldFont
 
                     isExpanded: false

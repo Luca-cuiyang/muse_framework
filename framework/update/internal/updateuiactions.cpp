@@ -33,7 +33,7 @@ const UiActionList UpdateUiActions::m_actions = {
     UiAction("check-update",
              UiCtxAny,
              muse::shortcuts::CTX_ANY,
-             TranslatableString("action", "Check for &update")
+             TranslatableString("action", "检查更新")
              )
 };
 

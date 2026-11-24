@@ -133,14 +133,14 @@ Promise<IInteractive::Result> AppUpdateScenario::showNoUpdateMsg()
 {
     std::string webSiteUrl = configuration()->appWebSiteUrl();
     QUrl url(QString::fromStdString(webSiteUrl));
-    const QString str = muse::qtrc("update", "You already have the latest version of %1. "
-                                             "Please visit <a href=\"%2\">%3</a> for news on what’s coming next.")
+    const QString str = muse::qtrc("update", "你已在使用 %1 的最新版本。"
+                                             "请访问 <a href=\"%2\">%3</a> 了解即将推出的内容。")
                         .arg(application()->title().toQString(), QString::fromStdString(webSiteUrl), url.host());
 
     const IInteractive::Text text(str.toStdString(), IInteractive::TextFormat::RichText);
     const IInteractive::ButtonData okBtn = interactive()->buttonData(IInteractive::Button::Ok);
 
-    return interactive()->info(muse::trc("update", "You’re up to date!"), text, { okBtn }, okBtn.btn,
+    return interactive()->info(muse::trc("update", "已是最新版本！"), text, { okBtn }, okBtn.btn,
                                IInteractive::Option::WithIcon);
 }
 
@@ -172,10 +172,10 @@ Promise<Ret> AppUpdateScenario::showReleaseInfo(const ReleaseInfo& info)
 
 Promise<IInteractive::Result> AppUpdateScenario::showServerErrorMsg()
 {
-    return interactive()->error(muse::trc("update", "Cannot connect to server"),
-                                muse::trc("update", "Sorry - please try again later"),
+    return interactive()->error(muse::trc("update", "无法连接到服务器"),
+                                muse::trc("update", "抱歉，请稍后重试"),
                                 {}, int(IInteractive::Button::NoButton), { IInteractive::WithIcon },
-                                muse::trc("update", "Check for update"));
+                                muse::trc("update", "检查更新"));
 }
 
 Promise<Ret> AppUpdateScenario::askToRetryOnNotEnoughDiskSpace(const Ret& error, const std::function<Promise<Ret>()>& retry)
@@ -185,9 +185,9 @@ Promise<Ret> AppUpdateScenario::askToRetryOnNotEnoughDiskSpace(const Ret& error,
         interactive()->buttonData(IInteractive::Button::Retry)
     };
 
-    return interactive()->error(muse::trc("update", "Not enough disk space"), error.text(),
+    return interactive()->error(muse::trc("update", "磁盘空间不足"), error.text(),
                                 buttons, int(IInteractive::Button::Retry), { IInteractive::WithIcon },
-                                muse::trc("update", "Check for update"))
+                                muse::trc("update", "检查更新"))
            .then<Ret>(this, [this, retry](const IInteractive::Result& res, auto resolve) {
         if (!res.isButton(IInteractive::Button::Retry)) {
             return resolve(muse::make_ret(Ret::Code::Cancel));
@@ -262,14 +262,14 @@ Promise<Ret> AppUpdateScenario::prepareAndInstall(const io::path_t& packagePath)
 
 Promise<Ret> AppUpdateScenario::askToRestartAndInstall(const io::path_t& packagePath, const io::path_t& preparedPath)
 {
-    const std::string info = muse::qtrc("update", "%1 has downloaded an update and is ready to install it. "
-                                                  "%1 will restart to complete the installation. "
-                                                  "If you have any unsaved changes, you will be prompted to save them first.")
+    const std::string info = muse::qtrc("update", "%1 已下载好更新，准备安装。"
+                                                  "安装时 %1 会重启，"
+                                                  "如果有未保存的修改，会先提醒你保存。")
                              .arg(application()->title().toQString()).toStdString();
     const int restartBtn = int(IInteractive::Button::CustomButton) + 1;
     const IInteractive::ButtonDatas buttons = {
         interactive()->buttonData(IInteractive::Button::Cancel),
-        IInteractive::ButtonData(restartBtn, muse::trc("update", "Restart"), true)
+        IInteractive::ButtonData(restartBtn, muse::trc("update", "重启"), true)
     };
 
     return interactive()->info("", info, buttons, restartBtn)
@@ -299,13 +299,13 @@ Promise<Ret> AppUpdateScenario::askToRestartAndInstall(const io::path_t& package
 
 Promise<Ret> AppUpdateScenario::askToCloseAppAndCompleteInstall(const io::path_t& packagePath)
 {
-    const std::string info = muse::qtrc("update", "%1 needs to close to complete the installation. "
-                                                  "If you have any unsaved changes, you will be prompted to save them before %1 closes.")
+    const std::string info = muse::qtrc("update", "%1 需要关闭才能完成安装。"
+                                                  "如果有未保存的修改，%1 关闭前会先提醒你保存。")
                              .arg(application()->title().toQString()).toStdString();
     const int closeBtn = int(IInteractive::Button::CustomButton) + 1;
     const IInteractive::ButtonDatas buttons = {
         interactive()->buttonData(IInteractive::Button::Cancel),
-        IInteractive::ButtonData(closeBtn, muse::trc("update", "Close"), true)
+        IInteractive::ButtonData(closeBtn, muse::trc("update", "关闭"), true)
     };
 
     return interactive()->info("", info, buttons, closeBtn)
