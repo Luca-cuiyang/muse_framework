@@ -84,7 +84,18 @@ void* openLib(const char* name)
 #if defined(Q_OS_WIN)
     return muse::loadLib(io::path_t(name));
 #else
-    // 先按标准路径逐个尝试，覆盖 Homebrew / 常见安装位置
+    // 优先加载 App 内置 Frameworks/ffmpeg，再回退到 Homebrew / 常见安装位置。
+    const QString appDir = QCoreApplication::applicationDirPath();
+    const QString bundledDir = QDir::cleanPath(QDir(appDir).filePath("../Frameworks/ffmpeg"));
+    for (const QString& base : QStringList { bundledDir }) {
+        const io::path_t full = io::path_t(base.toStdString()) + "/" + name;
+        void* h = muse::loadLib(full);
+        if (h) {
+            return h;
+        }
+    }
+
+    // 再按标准路径逐个尝试，覆盖 Homebrew / 常见安装位置
     const char* dirs[] = {
         "/opt/homebrew/lib/",
         "/usr/local/lib/",
@@ -315,9 +326,9 @@ bool FfmpegDecoder::decode(const uint8_t* data, size_t size, std::vector<float>&
         api.avcodec = openLib("libavcodec.so.62");
         api.avutil = openLib("libavutil.so.60");
 #else
-        api.avformat = openLib("libavformat.dylib");
-        api.avcodec = openLib("libavcodec.dylib");
-        api.avutil = openLib("libavutil.dylib");
+        api.avformat = openLib("libavformat.62.dylib");
+        api.avcodec = openLib("libavcodec.62.dylib");
+        api.avutil = openLib("libavutil.60.dylib");
 #endif
         if (!api.avformat || !api.avcodec || !api.avutil) {
             return false;
