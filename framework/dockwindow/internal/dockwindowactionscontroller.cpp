@@ -80,9 +80,13 @@ muse::Ret DockWindowActionsController::setDockOpen(const rcommand::Params& param
     if (!(params.contains("dock_name") && params.contains("open"))) {
         return muse::make_ret(Ret::Code::BadArgs);
     }
+    IDockWindow* dockWindow = window();
+    if (!dockWindow) {
+        return muse::make_ret(Ret::Code::UnknownError);
+    }
     QString dockName = QString::fromStdString(params.at("dock_name").toString());
     bool open = params.at("open").toBool();
-    window()->setDockOpen(dockName, open);
+    dockWindow->setDockOpen(dockName, open);
     return muse::make_ok();
 }
 
@@ -92,8 +96,13 @@ muse::Ret DockWindowActionsController::toggleOpened(const rcommand::Params& para
         return muse::make_ret(Ret::Code::BadArgs);
     }
 
+    IDockWindow* dockWindow = window();
+    if (!dockWindow) {
+        return muse::make_ret(Ret::Code::UnknownError);
+    }
+
     QString dockName = QString::fromStdString(params.at("dock_name").toString());
-    window()->toggleDock(dockName);
+    dockWindow->toggleDock(dockName);
     return muse::make_ok();
 }
 
@@ -103,18 +112,31 @@ muse::Ret DockWindowActionsController::toggleFloating(const rcommand::Params& pa
         return muse::make_ret(Ret::Code::BadArgs);
     }
 
+    IDockWindow* dockWindow = window();
+    if (!dockWindow) {
+        return muse::make_ret(Ret::Code::UnknownError);
+    }
+
     QString dockName = QString::fromStdString(params.at("dock_name").toString());
-    window()->toggleDockFloating(dockName);
+    dockWindow->toggleDockFloating(dockName);
     return muse::make_ok();
 }
 
 IDockWindow* DockWindowActionsController::window() const
 {
-    return dockWindowProvider()->window();
+    const std::shared_ptr<IDockWindowProvider>& provider = dockWindowProvider();
+    if (!provider) {
+        return nullptr;
+    }
+    return provider->window();
 }
 
 muse::Ret DockWindowActionsController::restoreDefaultLayout()
 {
-    window()->restoreDefaultLayout();
+    IDockWindow* dockWindow = window();
+    if (!dockWindow) {
+        return muse::make_ret(Ret::Code::UnknownError);
+    }
+    dockWindow->restoreDefaultLayout();
     return muse::make_ok();
 }
