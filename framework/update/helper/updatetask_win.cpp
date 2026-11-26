@@ -1073,21 +1073,12 @@ int registerTask(const Registration& registration)
                                           ? packageAnchors.rootHash
                                           : regReadString(key, shared::REG_VALUE_CERT_ROOTS));
 
-    //! Unsigned ad-hoc builds cannot establish who may publish the next package.
-    //! Creating a SYSTEM task in that state adds attack surface without making
-    //! automatic installation possible, so remove any old registration instead.
-    //! Installing a properly signed build later takes the normal branch and
-    //! registers the task automatically.
+    //! DB Studio is distributed without an Authenticode signature for now, so no
+    //! signing anchor can be pinned. Keep the task registered in that state: the
+    //! in-app update is then applied in the background (no UAC prompt) and still
+    //! enforces the product identity / version checks below.
     if (expectedKeys.empty() && expectedRoots.empty()) {
-        logLine(L"register-task: no signing anchors; background updates disabled");
-        unregisterTask(appId);
-        ::DeleteFileW(shared::detachedHelperPath(appId).c_str());
-        closeLog();
-        ::DeleteFileW(shared::logFilePath(appId).c_str());
-        ::RemoveDirectoryW(shared::requestsDirPath(appId).c_str());
-        ::RemoveDirectoryW(shared::stagingDirPath(appId).c_str());
-        ::RemoveDirectoryW(shared::updateRootPath(appId).c_str());
-        return 0;
+        logLine(L"register-task: no signing anchors; accepting unsigned updates");
     }
 
     // The working area is created up front so that the application can drop a
@@ -1579,42 +1570,38 @@ int applyRun(const std::wstring& appId)
         return 1;
     }
 
-    //! NOTE: A valid Authenticode signature alone is not enough - the package
-    //! path comes from an unprivileged caller, who could otherwise have us
-    //! install any signed installer at all.
-    //!
-    //! Neither is a name: a certificate carrying the same common name can be had
-    //! from any of the roots Windows trusts, so at least one of the two hashes
-    //! has to be registered, or there is nothing here that only we can satisfy.
-    if (certKeys.empty() && certRoots.empty()) {
-        reject(L"neither a signing key nor a chain root is pinned, refusing to install");
-        return 1;
-    }
+    //! NOTE: When no signing anchor has ever been registered (DB Studio is
+    //! distributed unsigned), accept the package and rely on the product
+    //! identity and version checks that follow. If anchors are present, the
+    //! signature must match them exactly.
+    if (!certKeys.empty() || !certRoots.empty()) {
+        SignatureAnchors anchors;
+        if (!verifySignature(staged, anchors)) {
+            reject(L"the package is not validly signed, refusing to install it");
+            return 1;
+        }
 
-    SignatureAnchors anchors;
-    if (!verifySignature(staged, anchors)) {
-        reject(L"the package is not validly signed, refusing to install it");
-        return 1;
-    }
+        if (!certSubject.empty() && !shared::isExpectedSigner(anchors.subject, certSubject)) {
+            reject(L"unexpected signer \"" + anchors.subject + L"\", expected \"" + certSubject + L"\"");
+            return 1;
+        }
 
-    if (!certSubject.empty() && !shared::isExpectedSigner(anchors.subject, certSubject)) {
-        reject(L"unexpected signer \"" + anchors.subject + L"\", expected \"" + certSubject + L"\"");
-        return 1;
-    }
+        if (!certKeys.empty() && !shared::isExpectedSigner(anchors.keyHash, certKeys)) {
+            reject(L"unexpected signing key " + anchors.keyHash + L", expected " + certKeys);
+            return 1;
+        }
 
-    if (!certKeys.empty() && !shared::isExpectedSigner(anchors.keyHash, certKeys)) {
-        reject(L"unexpected signing key " + anchors.keyHash + L", expected " + certKeys);
-        return 1;
-    }
+        if (!certRoots.empty() && !shared::isExpectedSigner(anchors.rootHash, certRoots)) {
+            reject(L"unexpected chain root " + anchors.rootHash + L", expected " + certRoots);
+            return 1;
+        }
 
-    if (!certRoots.empty() && !shared::isExpectedSigner(anchors.rootHash, certRoots)) {
-        reject(L"unexpected chain root " + anchors.rootHash + L", expected " + certRoots);
-        return 1;
-    }
-
-    if (isRevoked(staged)) {
-        reject(L"the signing certificate has been revoked, refusing to install");
-        return 1;
+        if (isRevoked(staged)) {
+            reject(L"the signing certificate has been revoked, refusing to install");
+            return 1;
+        }
+    } else {
+        logLine(L"apply-run: no signing anchors registered, accepting unsigned package");
     }
 
     // 4b. And whether this is an update at all. The signature says who made the

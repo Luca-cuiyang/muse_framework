@@ -209,13 +209,11 @@ bool WinUpdateInstaller::isInPlaceUpdateSupported() const
         return false;
     }
 
-    //! The SYSTEM update task refuses packages unless the installer registered
-    //! at least one certificate key or root to pin future signatures to.
-    //! Ad-hoc builds intentionally have neither; those use the manual in-app
-    //! download flow, which launches the MSI with one normal UAC confirmation.
-    const QString anchoredKeys = registeredValue(appId(), win::REG_VALUE_CERT_KEYS);
-    const QString anchoredRoots = registeredValue(appId(), win::REG_VALUE_CERT_ROOTS);
-    return !anchoredKeys.isEmpty() || !anchoredRoots.isEmpty();
+    //! DB Studio is distributed unsigned, so the task has no pinned signing
+    //! anchors. The update helper accepts unsigned packages in that state and
+    //! still enforces the product identity and version checks, so in-place
+    //! installation is supported.
+    return true;
 }
 
 RetVal<muse::io::path_t> WinUpdateInstaller::prepareUpdate(const muse::io::path_t& packagePath)
